@@ -1,6 +1,8 @@
 // list the zone IDs for each island's harbor and its corresponding central arena landing point
 var harborZoneIDs = [126, 97, 131, 158, 203, 239, 206, 150];
 var arenaZoneIDs = [153, 152, 152, 162, 162, 176, 176, 153];
+// keep track of how many free feasts we've given each player based on their military experience
+var grantedFeasts = [0, 0, 0, 0, 0, 0, 0, 0];
 
 function saveState () {
 }
@@ -110,5 +112,16 @@ function regularUpdate (dt : Float) {
 		}
 	}
 
-	// TODO: grant each player a free feast each time they earn another 200 military xp
+	// grant each player a free feast each time they earn another 200 military xp
+	var playerIndex = 0;
+	for (currentPlayer in state.players) {
+		var feastsOwed = currentPlayer.getResource(Resource.MilitaryXP) / 200;
+		var feastsGiven = grantedFeasts[playerIndex];
+		while ((feastsOwed - feastsGiven) >= 1) {
+			++currentPlayer.freeFeast;
+			++grantedFeasts[playerIndex];
+			feastsGiven = grantedFeasts[playerIndex];
+		}
+		++playerIndex;
+	}
 }
