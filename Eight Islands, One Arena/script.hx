@@ -1,5 +1,6 @@
-// list the zone IDs for each island's harbor and its corresponding central arena landing point
-var harborZoneIDs = [126, 97, 131, 158, 203, 239, 206, 150];
+// list the zone IDs for each island's harbor and its corresponding drakkar launching and landing points
+var harborZoneIDs = [126, 97, 131, 158, 203, 220, 206, 150];
+var seaZoneIDs = [124, 115, 117, 157, 177, 185, 188, 137];
 var arenaZoneIDs = [153, 152, 152, 162, 162, 176, 176, 153];
 // keep track of how many free feasts we've given each player based on their military experience
 var grantedFeasts = [0, 0, 0, 0, 0, 0, 0, 0];
@@ -27,7 +28,7 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VYggdrasil);
 	// it sure would be nice if we could set this up as a custom VictoryKind, so the victory overview screen would still work
 	// and we wouldn't need to do the progress checking/setting ourselves down there in regularUpdate
-	state.objectives.add("islandinfo", "Welcome to the islands! You can send military units into the arena by moving them to your harbor zone, but it's a one-way trip!");
+	state.objectives.add("islandinfo", "Welcome to the islands! You can send military units into the arena by moving them to your harbor zone. It's a one-way trip, but at least it comes with a full heal!");
 	state.objectives.add("feastinfo", "Eldhrumnir will let you keep your units healthy as long as you can feast, and you'll gain a free feast for every 200 military experience earned.");
 	state.objectives.add("militaryxp", "To win this competition, be the first to acquire ::value:: [MilitaryXP]!", {
 		visible: true,
@@ -87,28 +88,9 @@ function regularUpdate (dt : Float) {
 		if (drakkarList.length > 0) {
 			var matchIndex = harborZoneIDs.indexOf(harborZoneID);
 			var arenaZone = getZone(arenaZoneIDs[matchIndex]);
-			// drakkar(harborZone.owner, harborZone, arenaZone, 0, 0, drakkarList.map(function (unit) { return unit.kind; }));
-			// TODO: since drakkar() doesn't seem to actually work, we'll just use zone.addUnit(), but hopefully it gets fixed soon
-			for (unit in drakkarList) {
-				arenaZone.addUnit(unit.kind, 1, harborZone.owner);
-			}
-			// we can only spawn unitKind, not the unit itself, so after they land, modify their health accordingly
-			// this wouldn't be so indented if Array.filter actually worked...
-			for (zoneUnit in arenaZone.units) {
-				if ((zoneUnit.owner == harborZone.owner) && (zoneUnit.hitLife == 0)) {
-					for (drakkarUnit in drakkarList) {
-						if (drakkarUnit.hitLife > 0) {
-							if (zoneUnit.kind == drakkarUnit.kind) {
-								zoneUnit.hitLife = drakkarUnit.hitLife;
-								drakkarList.remove(drakkarUnit);
-							}
-						}
-						else {
-							drakkarList.remove(drakkarUnit);
-						}
-					}
-				}
-			}
+			var seaZone = getZone(seaZoneIDs[matchIndex]);
+			var unitKinds = []; for (unit in drakkarList) { unitKinds.push(unit.kind); } // I want Array.map...
+			drakkar(harborZone.owner, arenaZone, seaZone, 0, 0, unitKinds, 0.15);
 		}
 	}
 
