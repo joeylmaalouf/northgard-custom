@@ -97,9 +97,9 @@ function regularUpdate (dt : Float) {
 	// grant each player a free feast each time they earn another 200 military xp
 	var playerIndex = 0;
 	for (currentPlayer in state.players) {
-		var feastsOwed = currentPlayer.getResource(Resource.MilitaryXP) / 200;
+		var feastsOwed = toInt(currentPlayer.getResource(Resource.MilitaryXP) / 200);
 		var feastsGiven = grantedFeasts[playerIndex];
-		while ((feastsOwed - feastsGiven) >= 1) {
+		while (feastsOwed > feastsGiven) {
 			++currentPlayer.freeFeast;
 			++grantedFeasts[playerIndex];
 			feastsGiven = grantedFeasts[playerIndex];
