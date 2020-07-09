@@ -5,6 +5,7 @@ var arenaZoneIDs = [153, 152, 152, 162, 162, 176, 176, 153];
 // keep track of how many free feasts we've given each player based on their military experience
 var grantedFeasts = [0, 0, 0, 0, 0, 0, 0, 0];
 
+
 function saveState () {
 }
 
@@ -62,6 +63,7 @@ function regularUpdate (dt : Float) {
 	for (otherPlayer in state.players) {
 		state.objectives.setOtherPlayerVal("militaryxp", otherPlayer, otherPlayer.getResource(Resource.MilitaryXP));
 	}
+	// TODO: fix issue of military xp display not updating for anyone but host (use me() to get local player)
 
 	// trigger a custom victory/defeat if any player has completed our custom objective
 	for (currentPlayer in state.players) {
@@ -80,8 +82,8 @@ function regularUpdate (dt : Float) {
 		var harborZone = getZone(harborZoneID);
 		var drakkarList = [];
 		for (unit in harborZone.units) {
-			if (unit.isMilitary) {
-				drakkarList.push({ kind: unit.kind, hitLife: unit.hitLife });
+			if (unit.isMilitary && unit.owner == harborZone.owner) {
+				drakkarList.push(unit.kind);
 				unit.die(true, false);
 			}
 		}
@@ -89,8 +91,7 @@ function regularUpdate (dt : Float) {
 			var matchIndex = harborZoneIDs.indexOf(harborZoneID);
 			var arenaZone = getZone(arenaZoneIDs[matchIndex]);
 			var seaZone = getZone(seaZoneIDs[matchIndex]);
-			var unitKinds = []; for (unit in drakkarList) { unitKinds.push(unit.kind); } // I want Array.map...
-			drakkar(harborZone.owner, arenaZone, seaZone, 0, 0, unitKinds, 0.15);
+			drakkar(harborZone.owner, arenaZone, seaZone, 0, 0, drakkarList, 0.15);
 		}
 	}
 
