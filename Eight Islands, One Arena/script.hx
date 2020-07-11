@@ -29,13 +29,16 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VYggdrasil);
 	// it sure would be nice if we could set this up as a custom VictoryKind, so the victory overview screen would still work
 	// and we wouldn't need to do the progress checking/setting ourselves down there in regularUpdate
-	state.objectives.add("islandinfo", "Welcome to the islands! You can send military units into the arena by moving them to your harbor zone. It's a one-way trip, but at least it comes with a full heal!");
+	state.objectives.add("islandinfo", "Welcome to the islands! You can send military units into the arena by moving them to your harbor zone and clicking this button. It's a one-way trip, but at least it comes with a full heal!", {}, {
+		name: "Send a Drakkar",
+		action: "sendDrakkar"
+	});
 	state.objectives.add("feastinfo", "Eldhrumnir will let you keep your units healthy as long as you can feast, and you'll gain a free feast for every 200 military experience earned.");
 	state.objectives.add("militaryxp", "To win this competition, be the first to acquire ::value:: [MilitaryXP]!", {
 		visible: true,
 		showProgressBar: true,
 		showOtherPlayers: true,
-		goalVal: 5000,
+		goalVal: 4000,
 		autoCheck: true
 	});
 
@@ -77,24 +80,6 @@ function regularUpdate (dt : Float) {
 		}
 	}
 
-	// send any military units at the harbors to the arena via drakkars
-	for (harborZoneID in harborZoneIDs) {
-		var harborZone = getZone(harborZoneID);
-		var drakkarList = [];
-		for (unit in harborZone.units) {
-			if (unit.isMilitary && unit.owner == harborZone.owner) {
-				drakkarList.push(unit.kind);
-				unit.die(true, false);
-			}
-		}
-		if (drakkarList.length > 0) {
-			var matchIndex = harborZoneIDs.indexOf(harborZoneID);
-			var arenaZone = getZone(arenaZoneIDs[matchIndex]);
-			var seaZone = getZone(seaZoneIDs[matchIndex]);
-			drakkar(harborZone.owner, arenaZone, seaZone, 0, 0, drakkarList, 0.15);
-		}
-	}
-
 	// grant each player a free feast each time they earn another 200 military xp
 	var playerIndex = 0;
 	for (currentPlayer in state.players) {
@@ -106,5 +91,52 @@ function regularUpdate (dt : Float) {
 			feastsGiven = grantedFeasts[playerIndex];
 		}
 		++playerIndex;
+	}
+}
+
+
+function sendDrakkar () {
+	// first we need to find the right playerIndex based on which harborZone is in their owned zones
+	var playerIndex = -1;
+	var found = false;
+	for (ownedZone in me().zones) {
+		if (!found) {
+			playerIndex = -1;
+			for (harborZoneID in harborZoneIDs) {
+				++playerIndex;
+				if (ownedZone.id == harborZoneID) {
+					found = true; // since I can't double-break, this gets us out of the outer loop
+					break;
+				}
+			}
+		}
+	}
+
+	if (playerIndex != -1) {
+		// now we can send any military units at the harbors to the arena via drakkar
+		var harborZone = getZone(harborZoneIDs[playerIndex]);
+		if (harborZone.owner != null) {
+			// we end up having to pull the indices out and iterate a second time (in reverse) so we don't modify the array while iterating over it
+			var currentIndex = -1;
+			var validIndices = [];
+			var drakkarList = [];
+			for (unit in harborZone.units) {
+				++currentIndex;
+				if (unit.isMilitary && unit.owner == harborZone.owner) {
+					validIndices.push(currentIndex);
+				}
+			}
+			validIndices.reverse();
+			for (index in validIndices) {
+				var unit = harborZone.units[index];
+				drakkarList.push(unit.kind);
+				unit.die(true, false);
+			}
+			if (drakkarList.length > 0) {
+				var arenaZone = getZone(arenaZoneIDs[playerIndex]);
+				var seaZone = getZone(seaZoneIDs[playerIndex]);
+				drakkar(harborZone.owner, arenaZone, seaZone, 0, 0, drakkarList, 0.15);
+			}
+		}
 	}
 }
