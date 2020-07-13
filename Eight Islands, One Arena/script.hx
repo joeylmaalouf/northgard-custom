@@ -42,10 +42,8 @@ function onFirstLaunch () {
 		autoCheck: true
 	});
 
-	// reveal the whole map for everyone
-	for (currentPlayer in state.players) {
-		currentPlayer.discoverAll();
-	}
+	// reveal the whole map
+	me().discoverAll();
 
 	// disallow building on the harbor/arena zones
 	for (zoneID in harborZoneIDs.concat(arenaZoneIDs)) {
