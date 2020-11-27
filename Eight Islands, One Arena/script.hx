@@ -35,7 +35,7 @@ function onFirstLaunch () {
 		for (currentPlayer in state.players) {
 			currentPlayer.objectives.add("islandinfo", "Welcome to the islands! You can send military units into the arena by moving them to your harbor zone and clicking this button. It's a one-way trip, but at least it comes with a full heal!", {}, {
 				name: "Send a Drakkar",
-				action: "markForSending"
+				action: "invokeDrakkar"
 			});
 			currentPlayer.objectives.add("feastinfo", "Eldhrumnir will let you keep your units healthy as long as you can feast, and you'll gain a free feast for every 200 military experience earned.");
 			currentPlayer.objectives.add("militaryxp", "To win this competition, be the first to acquire ::value:: [MilitaryXP]!", {
@@ -97,27 +97,32 @@ function regularUpdate (dt : Float) {
 				feastsGiven = grantedFeasts[playerIndex];
 			}
 
-			// check if any of the players is marked as "ready to send"; if so, send their drakkar and unmark them
-			if (currentPlayer.hasBonus(Bonus.BJobProd, Unit.Scholar)) {
-				sendDrakkar(playerIndex);
-				currentPlayer.removeBonus(Bonus.BJobProd, Unit.Scholar);
-			}
-
 			++playerIndex;
 		}
 	}
 }
 
 
-function markForSending () {
-	// the drakkar() function is host-only, and this one is fired by whoever hit the button,
-	// so here we're going to mark a player as "ready to send" so the host's script will pick it up when scanning
-	// to represent that, we'll use a flag that the players couldn't normally set otherwise, and that won't actually affect them: a conquest herald bonus
-	me().addBonus({
-		id: Bonus.BJobProd,
-		unitId: Unit.Scholar,
-		isAdvanced: false
-	});
+function getPlayerIndex (player : Player) {
+	// this function will let us get the index into our global arrays that matches the given player objects
+	var playerIndex = -1;
+	var homeIndex = -1;
+	for (homeZoneID in homeZoneIDs) {
+		++homeIndex;
+		if (getZone(homeZoneID).owner == player) {
+			playerIndex = homeIndex;
+			break;
+		}
+	}
+	return playerIndex;
+}
+
+
+function invokeDrakkar () {
+	// the drakkar() function is host-only, so we need to use invokeHost
+	var args : Array<Dynamic> = [];
+	args.push(getPlayerIndex(player));
+	invokeHost("sendDrakkar", args);
 }
 
 
