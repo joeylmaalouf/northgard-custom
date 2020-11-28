@@ -137,7 +137,7 @@ function sendDrakkar (playerIndex : Int) {
 			var drakkarList = [];
 			for (unit in harborZone.units) {
 				++unitIndex;
-				if (unit.isMilitary && unit.owner == harborZone.owner) {
+				if (unit.owner == harborZone.owner && unit.isMilitary && unit.kind != Unit.Militia) {
 					validIndices.push(unitIndex);
 				}
 			}
@@ -150,7 +150,25 @@ function sendDrakkar (playerIndex : Int) {
 			if (drakkarList.length > 0) {
 				var arenaZone = getZone(arenaZoneIDs[playerIndex]);
 				var seaZone = getZone(seaZoneIDs[playerIndex]);
-				drakkar(harborZone.owner, arenaZone, seaZone, 0, 0, drakkarList, 0.1);
+				// batch the drakkar list into groups of 4 and send each group on their own ship
+				var drakkarGroups = [];
+				var drakkarGroup = [];
+				var counter = 0;
+				for (unit in drakkarList) {
+					if (counter <= 3) {
+						drakkarGroup.push(unit);
+						++counter;
+					}
+					else {
+						drakkarGroups.push(drakkarGroup);
+						drakkarGroup = [unit];
+						counter = 1;
+					}
+				}
+				drakkarGroups.push(drakkarGroup);
+				for (drakkarGroup in drakkarGroups) {
+					drakkar(harborZone.owner, arenaZone, seaZone, 0, 0, drakkarGroup, 0.1);
+				}
 			}
 		}
 	}
