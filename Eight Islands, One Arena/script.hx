@@ -1,10 +1,12 @@
-// list the zone IDs for each island's town hall, harbor, and drakkar launching/landing points
-var homeZoneIDs = [80, 40, 83, 156, 244, 287, 247, 171];
-var harborZoneIDs = [126, 97, 131, 158, 203, 220, 206, 150];
-var seaZoneIDs = [124, 115, 117, 157, 177, 185, 188, 137];
-var arenaZoneIDs = [153, 152, 152, 162, 162, 176, 176, 153];
+// zone lists for each island's town hall, harbor, and drakkar launching/landing points
+var homeZones = [for(i in [80, 40, 83, 156, 244, 287, 247, 171]) getZone(i)];
+var harborZones = [for(i in [126, 97, 131, 158, 203, 220, 206, 150]) getZone(i)];
+var seaZones = [for(i in [124, 115, 117, 157, 177, 185, 188, 137]) getZone(i)];
+var arenaZones = [for(i in [153, 152, 152, 162, 162, 176, 176, 153]) getZone(i)];
 // keep track of how many free feasts we've given each player as a reward for their military experience
 var grantedFeasts = [0, 0, 0, 0, 0, 0, 0, 0];
+// and we want our own player array, since state.players doesn't always maintain the same order regardless of which clan the host picks
+var players = [for(z in homeZones) z.owner];
 
 
 function saveState () {
@@ -32,12 +34,12 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VOdinSword);
 	state.removeVictory(VictoryKind.VYggdrasil);
 	if (isHost()) {
-		for (currentPlayer in state.players) {
-			currentPlayer.objectives.add("islandinfo", "Welcome to the islands! You can send military units into the arena by moving them to your harbor zone and clicking this button. It's a one-way trip, but at least it comes with a full heal!", {}, {
+		for (currentPlayer in players) {
+			currentPlayer.objectives.add("islandinfo", "Welcome to the islands! You can send your military units into the arena by moving them to your harbor zone and clicking this button. It's a one-way trip, but at least it comes with a full heal!", {}, {
 				name: "Send a Drakkar",
 				action: "invokeDrakkar"
 			});
-			currentPlayer.objectives.add("feastinfo", "Eldhrumnir will let you keep your units healthy as long as you can feast, and you'll gain a free feast for every 200 military experience earned.");
+			currentPlayer.objectives.add("feastinfo", "Eldhrumnir (which is both free to forge and your only available relic) will keep your units healthy as long as you can feast, and you'll gain a free feast for every 200 military experience earned.");
 			currentPlayer.objectives.add("militaryxp", "To win this competition, be the first to acquire ::value:: [MilitaryXP]!", {
 				visible: true,
 				showProgressBar: true,
@@ -52,8 +54,8 @@ function onFirstLaunch () {
 	}
 
 	// disallow building on the harbor/arena zones
-	for (zoneID in harborZoneIDs.concat(arenaZoneIDs)) {
-		getZone(zoneID).maxBuildings = 0;
+	for (zone in harborZones.concat(arenaZones)) {
+		zone.maxBuildings = 0;
 	}
 }
 
@@ -67,12 +69,10 @@ function onEachLaunch () {
 function regularUpdate (dt : Float) {
 	if (isHost()) {
 		var playerIndex = 0;
-		for (homeZoneID in homeZoneIDs) { // unlike state.players, this order will always remain the same, regardless of which clan the host picks
-			var currentPlayer = getZone(homeZoneID).owner;
-
+		for (currentPlayer in players) {
 			// update each player's progress towards our custom objective
 			@sync {
-				for (otherPlayer in state.players) {
+				for (otherPlayer in players) {
 					if (currentPlayer == otherPlayer) {
 						otherPlayer.objectives.setCurrentVal("militaryxp", currentPlayer.getResource(Resource.MilitaryXP));
 					}
@@ -81,7 +81,6 @@ function regularUpdate (dt : Float) {
 					}
 				}
 			}
-			// TODO: fix non-host players seeing themselves duplicated over the host in xp objective list
 
 			// trigger a custom victory/defeat if any player has completed our custom objective
 			if (currentPlayer.getResource(Resource.MilitaryXP) >= currentPlayer.objectives.getGoalVal("militaryxp")) {
@@ -107,9 +106,9 @@ function getPlayerIndex (player : Player) {
 	// this function will let us get the index into our global arrays that matches the given player objects
 	var playerIndex = -1;
 	var homeIndex = -1;
-	for (homeZoneID in homeZoneIDs) {
+	for (currentPlayer in players) {
 		++homeIndex;
-		if (getZone(homeZoneID).owner == player) {
+		if (currentPlayer == player) {
 			playerIndex = homeIndex;
 			break;
 		}
@@ -129,7 +128,7 @@ function invokeDrakkar () {
 function sendDrakkar (playerIndex : Int) {
 	if (playerIndex != -1) {
 		// if we have a valid player, we can send any military units at their harbor to the arena via drakkar
-		var harborZone = getZone(harborZoneIDs[playerIndex]);
+		var harborZone = harborZones[playerIndex];
 		if (harborZone.owner != null) {
 			// we end up having to pull the indices out and iterate a second time (in reverse) so we don't modify the array while iterating over it
 			var unitIndex = -1;
@@ -148,8 +147,8 @@ function sendDrakkar (playerIndex : Int) {
 				unit.die(true, false);
 			}
 			if (drakkarList.length > 0) {
-				var arenaZone = getZone(arenaZoneIDs[playerIndex]);
-				var seaZone = getZone(seaZoneIDs[playerIndex]);
+				var arenaZone = arenaZones[playerIndex];
+				var seaZone = seaZones[playerIndex];
 				// batch the drakkar list into groups of 4 and send each group on their own ship
 				var drakkarGroups = [];
 				var drakkarGroup = [];

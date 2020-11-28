@@ -1,0 +1,60 @@
+{
+	"building": {
+		"RelicHammer": {
+			"props": {
+				"disabledForClans": [
+					{
+						"clan": "Stag"
+					}
+				]
+			}
+		},
+		"RelicShield": {
+			"props": {
+				"disabledForClans": [
+					{
+						"clan": "Stag"
+					}
+				]
+			}
+		},
+		"RelicCup": {
+			"props": {
+				"disabledForClans": [
+					{
+						"clan": "Stag"
+					}
+				]
+			}
+		},
+		"RelicPillar": {
+			"props": {
+				"disabledForClans": [
+					{
+						"clan": "Stag"
+					}
+				]
+			}
+		},
+		"RelicStag": {
+			"props": {
+				"disabledForClans": [
+					{
+						"clan": "Stag"
+					}
+				]
+			}
+		}
+	},
+	"cst": {
+		"RelicWood": {
+			"value": 0
+		},
+		"RelicIron": {
+			"value": 0
+		},
+		"RelicKrowns": {
+			"value": 0
+		}
+	}
+}
