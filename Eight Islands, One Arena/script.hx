@@ -81,6 +81,7 @@ function regularUpdate (dt : Float) {
 					}
 				}
 			}
+			// TODO: fix non-hosts seeing their own objective progress duplicated in place of host's objective progress
 
 			// trigger a custom victory/defeat if any player has completed our custom objective
 			if (currentPlayer.getResource(Resource.MilitaryXP) >= currentPlayer.objectives.getGoalVal("militaryxp")) {
