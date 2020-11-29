@@ -70,18 +70,8 @@ function regularUpdate (dt : Float) {
 	if (isHost()) {
 		var playerIndex = 0;
 		for (currentPlayer in players) {
-			// update each player's progress towards our custom objective
-			@sync {
-				for (otherPlayer in players) {
-					if (currentPlayer == otherPlayer) {
-						otherPlayer.objectives.setCurrentVal("militaryxp", currentPlayer.getResource(Resource.MilitaryXP));
-					}
-					else {
-						otherPlayer.objectives.setOtherPlayerVal("militaryxp", currentPlayer, currentPlayer.getResource(Resource.MilitaryXP));
-					}
-				}
-			}
-			// TODO: fix non-hosts seeing their own objective progress duplicated in place of host's objective progress
+			// update each player's objective display
+			invokeAll("updateObjectives", []);
 
 			// trigger a custom victory/defeat if any player has completed our custom objective
 			if (currentPlayer.getResource(Resource.MilitaryXP) >= currentPlayer.objectives.getGoalVal("militaryxp")) {
@@ -98,6 +88,19 @@ function regularUpdate (dt : Float) {
 			}
 
 			++playerIndex;
+		}
+	}
+}
+
+
+function updateObjectives () {
+	// update each player's progress towards our custom objective
+	for (currentPlayer in players) {
+		if (currentPlayer == me()) {
+			me().objectives.setCurrentVal("militaryxp", currentPlayer.getResource(Resource.MilitaryXP));
+		}
+		else {
+			me().objectives.setOtherPlayerVal("militaryxp", currentPlayer, currentPlayer.getResource(Resource.MilitaryXP));
 		}
 	}
 }
@@ -121,7 +124,7 @@ function getPlayerIndex (player : Player) {
 function invokeDrakkar () {
 	// the drakkar() function is host-only, so we need to use invokeHost
 	var args : Array<Dynamic> = [];
-	args.push(getPlayerIndex(player));
+	args.push(getPlayerIndex(me()));
 	invokeHost("sendDrakkar", args);
 }
 
