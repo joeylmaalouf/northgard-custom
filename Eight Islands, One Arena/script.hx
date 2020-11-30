@@ -1,8 +1,8 @@
 // zone lists for each island's town hall, harbor, and drakkar launching/landing points
-var homeZones = [for(i in [80, 40, 83, 156, 244, 287, 247, 171]) getZone(i)];
-var harborZones = [for(i in [126, 97, 131, 158, 203, 220, 206, 150]) getZone(i)];
-var seaZones = [for(i in [124, 115, 117, 157, 177, 185, 188, 137]) getZone(i)];
-var arenaZones = [for(i in [153, 152, 152, 162, 162, 176, 176, 153]) getZone(i)];
+var homeZones = [for(i in [99, 42, 30, 77, 199, 246, 287, 216]) getZone(i)];
+var harborZones = [for(i in [114, 85, 73, 118, 169, 214, 241, 185]) getZone(i)];
+var seaZones = [for(i in [146, 115, 122, 141, 177, 194, 186, 166]) getZone(i)];
+var arenaZones = [for(i in [136, 128, 143, 145, 167, 179, 168, 153]) getZone(i)];
 // keep track of how many free feasts we've given each player as a reward for their military experience
 var grantedFeasts = [0, 0, 0, 0, 0, 0, 0, 0];
 // and we want our own player array, since state.players doesn't always maintain the same order regardless of which clan the host picks
