@@ -53,8 +53,8 @@ function onFirstLaunch () {
 		}
 	}
 
-	// disallow building on the harbor/arena zones
-	for (zone in harborZones.concat(arenaZones)) {
+	// disallow building on the harbor zones
+	for (zone in harborZones) {
 		zone.maxBuildings = 0;
 	}
 }
@@ -70,8 +70,15 @@ function regularUpdate (dt : Float) {
 	if (isHost()) {
 		var playerIndex = 0;
 		for (currentPlayer in players) {
-			// update each player's objective display
-			invokeAll("updateObjectives", []);
+			// update each player's progress towards our custom objective
+			@sync for (otherPlayer in players) {
+				if (otherPlayer == currentPlayer) {
+					currentPlayer.objectives.setCurrentVal("militaryxp", currentPlayer.getResource(Resource.MilitaryXP));
+				}
+				else {
+					otherPlayer.objectives.setOtherPlayerVal("militaryxp", currentPlayer, currentPlayer.getResource(Resource.MilitaryXP));
+				}
+			}
 
 			// trigger a custom victory/defeat if any player has completed our custom objective
 			if (currentPlayer.getResource(Resource.MilitaryXP) >= currentPlayer.objectives.getGoalVal("militaryxp")) {
@@ -88,19 +95,6 @@ function regularUpdate (dt : Float) {
 			}
 
 			++playerIndex;
-		}
-	}
-}
-
-
-function updateObjectives () {
-	// update each player's progress towards our custom objective
-	for (currentPlayer in players) {
-		if (currentPlayer == me()) {
-			me().objectives.setCurrentVal("militaryxp", currentPlayer.getResource(Resource.MilitaryXP));
-		}
-		else {
-			me().objectives.setOtherPlayerVal("militaryxp", currentPlayer, currentPlayer.getResource(Resource.MilitaryXP));
 		}
 	}
 }
