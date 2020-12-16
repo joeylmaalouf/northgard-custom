@@ -1,5 +1,14 @@
 {
 	"building": {
+		"ScoutCamp": {
+			"props": {
+				"disabledForClans": [
+					{
+						"clan": "Stag"
+					}
+				]
+			}
+		},
 		"RelicHammer": {
 			"props": {
 				"disabledForClans": [
