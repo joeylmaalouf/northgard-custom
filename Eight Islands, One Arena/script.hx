@@ -35,11 +35,11 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VYggdrasil);
 	if (isHost()) {
 		for (currentPlayer in players) {
-			currentPlayer.objectives.add("islandinfo", "Welcome to the islands! You can send your military units into the arena by moving them to your harbor zone and clicking this button. It's a one-way trip, but at least it comes with a full heal!", {}, {
+			currentPlayer.objectives.add("islandinfo", "Welcome to the islands! You can send your military units into the arena by moving them to your harbor zone and clicking this button. It's a one-way trip, but at least it comes with a full heal! To prevent the game from crashing, each click will only send up to 20 units, but feel free to double- or triple-click as necessary.", {}, {
 				name: "Send a Drakkar",
 				action: "invokeDrakkar"
 			});
-			currentPlayer.objectives.add("feastinfo", "Eldhrumnir (which is both free to forge and your only available relic) will keep your units healthy as long as you can feast, and you'll gain a free feast for every 200 military experience earned.");
+			currentPlayer.objectives.add("feastinfo", "Eldhrumnir is both free to forge and your only available relic; it will keep your units healthy as long as you can feast, and you'll gain a free feast for every 250 military experience earned. You'll also (invisibly) gain the Recruitment lore at 1000 military experience, so get in there!");
 			currentPlayer.objectives.add("militaryxp", "To win this competition, be the first to acquire ::value:: [MilitaryXP]!", {
 				visible: true,
 				showProgressBar: true,
@@ -85,13 +85,17 @@ function regularUpdate (dt : Float) {
 				currentPlayer.customVictory("Congratulations! You've won the competition.", "Oh no! You've lost the competition.");
 			}
 
-			// grant each player a free feast each time they earn another 200 military xp
-			var feastsOwed = toInt(currentPlayer.getResource(Resource.MilitaryXP) / 200);
+			// grant each player a free feast each time they earn another 250 military xp
+			var feastsOwed = toInt(currentPlayer.getResource(Resource.MilitaryXP) / 250);
 			var feastsGiven = grantedFeasts[playerIndex];
 			while (feastsOwed > feastsGiven) {
 				++currentPlayer.freeFeast;
 				++grantedFeasts[playerIndex];
 				feastsGiven = grantedFeasts[playerIndex];
+			}
+			// as well as the recruitment lore if they've reached 1000
+			if (!currentPlayer.hasTech(Tech.Recruit) && currentPlayer.getResource(Resource.MilitaryXP) >= 1000) {
+				currentPlayer.unlockTech(Tech.Recruit, true);
 			}
 
 			++playerIndex;
@@ -129,14 +133,18 @@ function sendDrakkar (playerIndex : Int) {
 		var harborZone = harborZones[playerIndex];
 		if (harborZone.owner != null) {
 			// we end up having to pull the indices out and iterate a second time (in reverse) so we don't modify the array while iterating over it
-			var unitIndex = -1;
+			var unitIndex = 0;
 			var validIndices = [];
 			var drakkarList = [];
 			for (unit in harborZone.units) {
-				++unitIndex;
 				if (unit.owner == harborZone.owner && unit.isMilitary && unit.kind != Unit.Militia) {
 					validIndices.push(unitIndex);
 				}
+				// the game crashes if we try to send too many units at once, regardless of how we try to split them among the boats
+				if (unitIndex >= 20) {
+					break;
+				}
+				++unitIndex;
 			}
 			validIndices.reverse();
 			for (index in validIndices) {
@@ -147,12 +155,12 @@ function sendDrakkar (playerIndex : Int) {
 			if (drakkarList.length > 0) {
 				var arenaZone = arenaZones[playerIndex];
 				var seaZone = seaZones[playerIndex];
-				// batch the drakkar list into groups of 4 and send each group on their own ship
+				// batch the drakkar list into groups of 5 and send each group on their own ship
 				var drakkarGroups = [];
 				var drakkarGroup = [];
 				var counter = 0;
 				for (unit in drakkarList) {
-					if (counter <= 3) {
+					if (counter < 5) {
 						drakkarGroup.push(unit);
 						++counter;
 					}
