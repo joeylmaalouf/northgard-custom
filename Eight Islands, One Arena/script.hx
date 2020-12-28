@@ -3,9 +3,10 @@ var homeZones = [for(i in [99, 42, 30, 77, 199, 246, 287, 216]) getZone(i)];
 var harborZones = [for(i in [114, 85, 73, 118, 169, 214, 241, 185]) getZone(i)];
 var seaZones = [for(i in [146, 115, 122, 141, 177, 194, 186, 166]) getZone(i)];
 var arenaZones = [for(i in [136, 128, 143, 145, 167, 179, 168, 153]) getZone(i)];
+var middleZones = [for(i in [148, 155]) getZone(i)];
 // keep track of how many free feasts we've given each player as a reward for their military experience
 var grantedFeasts = [0, 0, 0, 0, 0, 0, 0, 0];
-// and we want our own player array, since state.players doesn't always maintain the same order regardless of which clan the host picks
+// we want our own player array, since state.players doesn't always maintain the same order regardless of which clan the host picks
 var players = [for(z in homeZones) z.owner];
 
 
@@ -35,11 +36,11 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VYggdrasil);
 	if (isHost()) {
 		for (currentPlayer in players) {
-			currentPlayer.objectives.add("islandinfo", "Welcome to the islands! You can send your military units into the arena by moving them to your harbor zone and clicking this button. It's a one-way trip, but at least it comes with a full heal! To prevent the game from crashing, each click will only send up to 20 units, but feel free to double- or triple-click as necessary.", {}, {
+			currentPlayer.objectives.add("islandinfo", "Welcome to the islands! You can send your military units into the arena by moving them to your harbor zone and clicking this button. It's a one-way trip, but at least it comes with a full heal! To prevent the game from crashing, each click will only send up to 16 units, but feel free to double- or triple-click as necessary.", {}, {
 				name: "Send a Drakkar",
 				action: "invokeDrakkar"
 			});
-			currentPlayer.objectives.add("feastinfo", "Eldhrumnir is both free to forge and your only available relic; it will keep your units healthy as long as you can feast, and you'll gain a free feast for every 250 military experience earned. You'll also (invisibly) gain the Recruitment lore at 1000 military experience, so get in there!");
+			currentPlayer.objectives.add("rewardinfo", "Eldhrumnir is both free to forge and your only available relic; it will keep your units healthy as long as you can feast, and you'll gain a free feast for every 250 military experience earned. You'll also (invisibly) gain the Recruitment lore at 1000 military experience, so get in there! The creatures will respawn every 3 months.");
 			currentPlayer.objectives.add("militaryxp", "To win this competition, be the first to acquire ::value:: [MilitaryXP]!", {
 				visible: true,
 				showProgressBar: true,
@@ -82,7 +83,7 @@ function regularUpdate (dt : Float) {
 
 			// trigger a custom victory/defeat if any player has completed our custom objective
 			if (currentPlayer.getResource(Resource.MilitaryXP) >= currentPlayer.objectives.getGoalVal("militaryxp")) {
-				currentPlayer.customVictory("Congratulations! You've won the competition.", "Oh no! You've lost the competition.");
+				currentPlayer.customVictory("Congratulations, you are the champion!", "Someone else has claimed the title of champion!");
 			}
 
 			// grant each player a free feast each time they earn another 250 military xp
@@ -99,6 +100,20 @@ function regularUpdate (dt : Float) {
 			}
 
 			++playerIndex;
+		}
+
+		// respawn the island creatures every so often if they've been killed
+		if (toInt(state.time) % (3 * 60) == 0) {
+			@sync for (middleZone in middleZones) {
+				if (middleZone.getUnit(Unit.WhiteBear) == null) {
+					middleZone.addUnit(Unit.WhiteBear, 2, null, true);
+				}
+			}
+			@sync for (arenaZone in arenaZones) {
+				if (arenaZone.getUnit(Unit.Golem) == null) {
+					arenaZone.addUnit(Unit.Golem, 1, null, true);
+				}
+			}
 		}
 	}
 }
@@ -141,7 +156,7 @@ function sendDrakkar (playerIndex : Int) {
 					validIndices.push(unitIndex);
 				}
 				// the game crashes if we try to send too many units at once, regardless of how we try to split them among the boats
-				if (unitIndex >= 20) {
+				if (unitIndex >= 16) {
 					break;
 				}
 				++unitIndex;
