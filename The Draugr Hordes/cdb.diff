@@ -1,0 +1,92 @@
+{
+	"building": {
+		"Muspell": {
+			"props": {
+				"spawnFoe": null,
+				"spawnSpeed": 0,
+				"spawnMax": 0
+			}
+		},
+		"MuspellConquest": {
+			"props": {
+				"spawnFoe": null,
+				"spawnSpeed": 0,
+				"spawnMax": 0
+			}
+		},
+		"Niflheim": {
+			"props": {
+				"spawnFoe": null,
+				"spawnMax": 0
+			}
+		},
+		"Helheim": {
+			"props": {
+				"spawnFoe": null,
+				"spawnSpeed": 0,
+				"spawnMax": 0
+			}
+		}
+	},
+	"event": {
+		"Blizzard": {
+			"proba": 0
+		},
+		"Rats": {
+			"proba": 0
+		},
+		"Earthquake": {
+			"proba": 0
+		},
+		"DraugrAttack": {
+			"proba": 0
+		},
+		"FallenSailors": {
+			"proba": 0
+		},
+		"BloodMoon": {
+			"proba": 0
+		},
+		"Eruption": {
+			"proba": 0
+		},
+		"FrozenSea": {
+			"proba": 0
+		},
+		"KrakenAttack": {
+			"proba": 0
+		},
+		"GolemAwake": {
+			"proba": 0
+		},
+		"Unfreeze": {
+			"proba": 0
+		},
+		"FoodRequest": {
+			"proba": 0
+		},
+		"WoodRequest": {
+			"proba": 0
+		},
+		"MoneyRequest": {
+			"proba": 0
+		},
+		"GiantAttack": {
+			"proba": 0
+		},
+		"BifrostEvent": {
+			"proba": 0
+		},
+		"IceWormAttack": {
+			"proba": 0
+		},
+		"HagenReinforcement": {
+			"proba": 0
+		}
+	},
+	"fame": {
+		"FDiscoverBuilding": {
+			"value": 0
+		}
+	}
+}
