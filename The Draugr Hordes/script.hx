@@ -64,7 +64,8 @@ function onFirstLaunch () {
 				goalVal: maxWaves,
 				autoCheck: true
 			});
-			currentPlayer.objectives.add("closegate", "Now's our chance to close the gates once and for all! Every (non-AI) [Maiden] and [BearMaiden] should get there at once!", {
+			// I'd like to say "[Maiden] and [BearMaiden]" instead of "warchief and Kaija", but for some reason it shifts the objective window over a lot
+			currentPlayer.objectives.add("closegate", "Now's your chance to close the gates once and for all! Every (non-AI) warchief and Kaija should head there at once!", {
 				visible: false,
 				showProgressBar: true,
 				val: 0,
@@ -165,12 +166,29 @@ function regularUpdate (dt : Float) {
 			}
 
 			// if the players have survived all of the waves, show them the next objective
+			// and if any warchiefs are alive, we'll have one of them star in a cutscene
 			if (!waveActive && currentWave == maxWaves) {
 				wavesOver = true;
+				var warchief;
+				@sync for (zone in state.zones) {
+					for (unit in zone.units) {
+						if (unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02) {
+							warchief = unit;
+							break;
+						}
+					}
+					if (warchief != null) {
+						break;
+					}
+				}
+				if (warchief != null) {
+					var args : Array<Dynamic> = [];
+					args.push(warchief);
+					invokeAll("playSurvivedCutscene", args);
+				}
 				@sync for (currentPlayer in state.players) {
 					currentPlayer.objectives.setVisible("closegate", true);
 				}
-				// TODO: maybe iterate through clans until we find a living warchief and have them do a cutscene?
 			}
 		}
 		else {
@@ -183,8 +201,8 @@ function regularUpdate (dt : Float) {
 
 			// if we have all of the non-AI heroes here, trigger the victory!
 			if (playerHeroes.length >= heroesNeeded) {
+				invokeAll("playClosedCutscene", []);
 				player.customVictory("Congratulations! The gates have been sealed for good!", "If you can see this message, something is wrong with the team setup!");
-				// TODO: maybe iterate through clans until we find a living warchief and have them do a cutscene?
 			}
 		}
 
@@ -198,7 +216,26 @@ function regularUpdate (dt : Float) {
 }
 
 
-function arrayContains(array : Dynamic, value : Dynamic) : Bool {
+function playSurvivedCutscene (warchief : Unit) {
+	setPause(true);
+	followUnit(warchief);
+	wait(1);
+	talk("The gates have been exhausted! We should take this chance to close them once and for all!", {
+		who: Banner.BannerBear,
+		textSize: FontKind.Title,
+	}, warchief, 5);
+	wait(1);
+	followUnit(null);
+	setPause(false);
+}
+
+
+function playClosedCutscene () {
+	// TODO: get all warchiefs (iterate with summonWarchief) and have them do a cutscene
+}
+
+
+function arrayContains (array : Dynamic, value : Dynamic) : Bool {
 	var contains = false;
 	for (item in array) {
 		if (item == value) {
