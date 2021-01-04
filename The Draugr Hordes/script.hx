@@ -1,7 +1,6 @@
-var humanPlayers = [for (currentPlayer in state.players) if (!currentPlayer.isAI) currentPlayer];
-var heroesNeeded = humanPlayers.length * 2;
+var heroesNeeded = [for (currentPlayer in state.players) if (!currentPlayer.isAI) currentPlayer].length;
 var centerZone = getZone(161);
-var homeZones = [for(i in [85, 106, 110, 221, 227, 219, 169, 176]) getZone(i)];
+var homeZones = [for (i in [85, 106, 110, 221, 227, 219, 169, 176]) getZone(i)];
 var waveUnitTypes = [Unit.Death, Unit.Valkyrie, Unit.UndeadGiant];
 var waveContents = [ // number of each unit type to send in each wave
 	[2, 0, 0],
@@ -31,6 +30,7 @@ var warningDelay = 120;
 var wavesToBuff = 2;
 var buffedWaves = [];
 var buffMultiplier = 1.5;
+var inCutscene = false;
 
 
 function saveState () {
@@ -64,13 +64,9 @@ function onFirstLaunch () {
 				goalVal: maxWaves,
 				autoCheck: true
 			});
-			// I'd like to say "[Maiden] and [BearMaiden]" instead of "warchief and Kaija", but for some reason it shifts the objective window over a lot
-			currentPlayer.objectives.add("closegate", "Now's your chance to close the gates once and for all! Every (non-AI) warchief and Kaija should head there at once!", {
-				visible: false,
-				showProgressBar: true,
-				val: 0,
-				goalVal: heroesNeeded,
-				autoCheck: true
+			// I'd like to say "[Maiden]" instead of "warchief", but for some reason it shifts the objective window over a lot
+			currentPlayer.objectives.add("closegate", "Now's your chance to close the gates once and for all! Every (non-AI) warchief should head there at once and clear the zone of foes!", {
+				visible: false
 			});
 
 			// reveal the map center, but don't let anyone colonize it
@@ -91,7 +87,7 @@ function onEachLaunch () {
 
 // Regular update is called every 0.5s
 function regularUpdate (dt : Float) {
-	if (isHost()) {
+	if (isHost() && !inCutscene) {
 		if (!wavesOver) {
 			// warn about the next invasion shortly after sending the previous one (or starting the game)
 			if ((toInt(state.time) - waveOffset) % waveCooldown == warningDelay) {
@@ -105,7 +101,7 @@ function regularUpdate (dt : Float) {
 				++currentWave;
 				wavePlayerIndex = 0;
 				waveSpawnTicker = 0;
-				buffedWaves = [for(i in 0...wavesToBuff) randomInt(homeZones.length)];
+				buffedWaves = [for (i in 0...wavesToBuff) randomInt(homeZones.length)];
 			}
 			// since the game crashes if we spawn too many units too quickly, we'll do one clan every few updates
 			if (sendingWave) {
@@ -148,7 +144,7 @@ function regularUpdate (dt : Float) {
 			}
 
 			// remove killed foes from our tracked list
-			waveUnits = [for(waveUnitGroup in waveUnits) [for(waveUnit in waveUnitGroup) if (waveUnit.life > 0) waveUnit]];
+			waveUnits = [for (waveUnitGroup in waveUnits) [for (waveUnit in waveUnitGroup) if (waveUnit.life > 0) waveUnit]];
 
 			// if the waves were all cleared, update the objective progress
 			var waveCleared = true;
@@ -184,7 +180,7 @@ function regularUpdate (dt : Float) {
 				if (warchief != null) {
 					var args : Array<Dynamic> = [];
 					args.push(warchief);
-					invokeAll("playSurvivedCutscene", args);
+					invokeAll("playInspireCutscene", args);
 				}
 				@sync for (currentPlayer in state.players) {
 					currentPlayer.objectives.setVisible("closegate", true);
@@ -192,17 +188,12 @@ function regularUpdate (dt : Float) {
 			}
 		}
 		else {
-			// if the waves are over, check how many hero units we have at the gate
-			var heroes = [for (unit in centerZone.units) if (unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02 || unit.kind == Unit.BearMaiden) unit];
-			var playerHeroes = [for (unit in heroes) if (arrayContains(humanPlayers, unit.owner)) unit];
-			@sync for (currentPlayer in state.players) {
-				currentPlayer.objectives.setCurrentVal("closegate", playerHeroes.length);
-			}
-
-			// if we have all of the non-AI heroes here, trigger the victory!
-			if (playerHeroes.length >= heroesNeeded) {
-				invokeAll("playClosedCutscene", []);
-				player.customVictory("Congratulations! The gates have been sealed for good!", "If you can see this message, something is wrong with the team setup!");
+			// if we have no foes and all of the non-AI warchiefs here, trigger the victory scene!
+			var foes = [for (unit in centerZone.units) if (unit.isFoe) unit];
+			var warchiefs = [for (unit in centerZone.units) if (unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02) unit];
+			var playerWarchiefs = [for (unit in warchiefs) if (!unit.owner.isAI) unit];
+			if (foes.length == 0 && playerWarchiefs.length >= heroesNeeded) {
+				invokeAll("playFinishCutscene", []);
 			}
 		}
 
@@ -216,22 +207,59 @@ function regularUpdate (dt : Float) {
 }
 
 
-function playSurvivedCutscene (warchief : Unit) {
+function playInspireCutscene (warchief : Unit) {
+	inCutscene = true;
 	setPause(true);
 	followUnit(warchief);
 	wait(1);
+	@async playAnim(warchief, "aye", false);
 	talk("The gates have been exhausted! We should take this chance to close them once and for all!", {
 		who: Banner.BannerBear,
 		textSize: FontKind.Title,
 	}, warchief, 5);
 	wait(1);
 	followUnit(null);
+	moveCamera({x: 472, y: 455});
+	wait(1);
 	setPause(false);
+	inCutscene = false;
 }
 
 
-function playClosedCutscene () {
-	// TODO: get all warchiefs (iterate with summonWarchief) and have them do a cutscene
+function playFinishCutscene () {
+	inCutscene = true;
+	setPause(true);
+	moveCamera({x: 472, y: 455});
+	var centerPositions = [
+		[469, 440],
+		[459, 450],
+		[480, 446],
+		[467, 467],
+		[475, 469],
+		[486, 463],
+		[457, 456],
+		[488, 454]
+	];
+	var playerIndex = 0;
+	var warchiefs = [];
+	for (homeZone in homeZones) {
+		var warchief = summonWarchief(homeZone.owner, centerZone, centerPositions[playerIndex][0], centerPositions[playerIndex][1]);
+		warchief.setControlable(false);
+		warchief.canPatrol = false;
+		warchief.orientToPosSmooth(472, 455, 30);
+		warchiefs.push(warchief);
+		++playerIndex;
+	}
+	wait(1);
+	@async for (warchief in warchiefs) {
+		playAnim(warchief, "victory", false);
+	};
+	wait(2);
+	shakeCamera();
+	wait(1);
+	setPause(false);
+	inCutscene = false;
+	player.customVictory("Congratulations! The gates have been sealed for good!", "If you can see this message, something is wrong with the team setup!");
 }
 
 
