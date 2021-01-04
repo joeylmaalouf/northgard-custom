@@ -1,12 +1,7 @@
+var humanPlayers = [for (currentPlayer in state.players) if (!currentPlayer.isAI) currentPlayer];
+var heroesNeeded = humanPlayers.length * 2;
 var centerZone = getZone(161);
 var homeZones = [for(i in [85, 106, 110, 221, 227, 219, 169, 176]) getZone(i)];
-var maxWaves = 12;
-var currentWave = 0;
-var waveOffset = 270;
-var waveCooldown = 360;
-var warningDelay = 120;
-var waveActive = false;
-var waveUnits = [[], [], [], [], [], [], [], []];
 var waveUnitTypes = [Unit.Death, Unit.Valkyrie, Unit.UndeadGiant];
 var waveContents = [ // number of each unit type to send in each wave
 	[2, 0, 0],
@@ -22,6 +17,19 @@ var waveContents = [ // number of each unit type to send in each wave
 	[12, 4, 1],
 	[12, 4, 2]
 ];
+var waveUnits = [[], [], [], [], [], [], [], []];
+var maxWaves = waveContents.length;
+var currentWave = 0;
+var wavePlayerIndex = 0;
+var wavesOver = false;
+var waveActive = false;
+var sendingWave = false;
+var waveOffset = 270;
+var waveCooldown = 360;
+var warningDelay = 120;
+var wavesToBuff = 2;
+var buffedWaves = [];
+var buffMultiplier = 1.5;
 
 
 function saveState () {
@@ -38,7 +46,7 @@ function init () {
 
 
 function onFirstLaunch () {
-	// remove all existing victory conditions and set our custom objective
+	// remove all existing victory conditions and set our custom objectives
 	state.removeVictory(VictoryKind.VMilitary);
 	state.removeVictory(VictoryKind.VFame);
 	state.removeVictory(VictoryKind.VMoney);
@@ -53,6 +61,13 @@ function onFirstLaunch () {
 				showProgressBar: true,
 				val: currentWave,
 				goalVal: maxWaves,
+				autoCheck: true
+			});
+			currentPlayer.objectives.add("closegate", "Now's our chance to close the gates once and for all! Every (non-AI) [Maiden] and [BearMaiden] should get there at once!", {
+				visible: false,
+				showProgressBar: true,
+				val: 0,
+				goalVal: heroesNeeded,
 				autoCheck: true
 			});
 
@@ -75,61 +90,96 @@ function onEachLaunch () {
 // Regular update is called every 0.5s
 function regularUpdate (dt : Float) {
 	if (isHost()) {
-		// warn about the next invasion shortly after sending the previous one (or starting the game)
-		if ((toInt(state.time) - waveOffset) % waveCooldown == warningDelay) {
-			state.events.setEvent(Event.HelheimInvasionStart, ((waveCooldown - warningDelay) / 60));
-		}
+		if (!wavesOver) {
+			// warn about the next invasion shortly after sending the previous one (or starting the game)
+			if ((toInt(state.time) - waveOffset) % waveCooldown == warningDelay) {
+				state.events.setEvent(Event.HelheimInvasionStart, ((waveCooldown - warningDelay) / 60));
+			}
 
-		// if the time is right, send a wave
-		if (!waveActive && (toInt(state.time) - waveOffset) % waveCooldown == 0 && toInt(state.time) > waveOffset) {
-			waveActive = true;
-			++currentWave;
-			var currentWaveContents = waveContents[currentWave - 1];
-			var playerIndex = 0;
-			for (homeZone in homeZones) {
-				var currentPlayer = homeZone.owner;
+			// if the time is right, send a wave
+			if (!waveActive && (toInt(state.time) - waveOffset) % waveCooldown == 0 && toInt(state.time) > waveOffset) {
+				sendingWave = true;
+				waveActive = true;
+				++currentWave;
+				wavePlayerIndex = 0;
+				buffedWaves = [for(i in 0...wavesToBuff) randomInt(homeZones.length)];
+			}
+			// since the game crashes if we spawn too many units, we'll do one clan per update
+			if (sendingWave) {
+				var currentWaveContents = waveContents[currentWave - 1];
+				var currentPlayer = homeZones[wavePlayerIndex].owner;
+				var waveBuffed = arrayContains(buffedWaves, wavePlayerIndex);
 				var unitIndex = 0;
 				for (unitType in waveUnitTypes) {
 					var unitCount = currentWaveContents[unitIndex];
+					if (waveBuffed) {
+						unitCount = toInt(unitCount * buffMultiplier);
+					}
 					if (unitCount > 0) {
-						var newUnits = centerZone.addUnit(unitType, unitCount, null, true);
-						waveUnits[playerIndex] = waveUnits[playerIndex].concat(newUnits);
+						var newUnits = centerZone.addUnit(unitType, unitCount, null, false);
+						waveUnits[wavePlayerIndex] = waveUnits[wavePlayerIndex].concat(newUnits);
 					}
 					++unitIndex;
 				}
-				launchAttackPlayer(waveUnits[playerIndex], currentPlayer);
-				currentPlayer.genericNotify("The undead are coming!", waveUnits[playerIndex][0]);
-				// TODO: instead of even waves, have one or two players randomly selected to get bigger waves? make sure to notify them!
-				++playerIndex;
-			}
-		}
-
-		// every so often, re-send the attack order in case any units decolonize a tile and decide to chill there
-		if (waveActive && randomInt(10) == 0) {
-			var playerIndex = 0;
-			for (homeZone in homeZones) {
-				if (waveUnits[playerIndex].length > 0) {
-					launchAttackPlayer(waveUnits[playerIndex], homeZone.owner);
+				launchAttackPlayer(waveUnits[wavePlayerIndex], currentPlayer);
+				var message = waveBuffed ? "An extra-large wave of undead are coming!" : "The undead are coming!";
+				currentPlayer.genericNotify(message, waveUnits[wavePlayerIndex][0]);
+				++wavePlayerIndex;
+				if (wavePlayerIndex >= homeZones.length) {
+					sendingWave = false;
 				}
-				++playerIndex;
+			}
+
+			// every so often, re-send the attack order in case any units decolonize a tile and decide to chill there
+			if (waveActive && randomInt(10) == 0) {
+				var playerIndex = 0;
+				for (homeZone in homeZones) {
+					if (waveUnits[playerIndex].length > 0) {
+						launchAttackPlayer(waveUnits[playerIndex], homeZone.owner);
+					}
+					++playerIndex;
+				}
+			}
+
+			// remove killed foes from our tracked list
+			waveUnits = [for(waveUnitGroup in waveUnits) [for(waveUnit in waveUnitGroup) if (waveUnit.life > 0) waveUnit]];
+
+			// if the waves were all cleared, update the objective progress
+			var waveCleared = true;
+			for (waveUnitGroup in waveUnits) {
+				if (waveUnitGroup.length > 0) {
+					waveCleared = false;
+					break;
+				}
+			}
+			if (waveActive && waveCleared) {
+				waveActive = false;
+				@sync for (currentPlayer in state.players) {
+					currentPlayer.objectives.setCurrentVal("survivewaves", currentWave);
+				}
+			}
+
+			// if the players have survived all of the waves, show them the next objective
+			if (!waveActive && currentWave == maxWaves) {
+				wavesOver = true;
+				@sync for (currentPlayer in state.players) {
+					currentPlayer.objectives.setVisible("closegate", true);
+				}
+				// TODO: maybe iterate through clans until we find a living warchief and have them do a cutscene?
 			}
 		}
-
-		// remove killed foes from our tracked list
-		waveUnits = [for(waveUnitGroup in waveUnits) [for(waveUnit in waveUnitGroup) if (waveUnit.life > 0) waveUnit]];
-
-		// if the waves were all cleared, update the objective progress
-		var waveCleared = true;
-		for (waveUnitGroup in waveUnits) {
-			if (waveUnitGroup.length > 0) {
-				waveCleared = false;
-				break;
-			}
-		}
-		if (waveActive && waveCleared) {
-			waveActive = false;
+		else {
+			// if the waves are over, check how many hero units we have at the gate
+			var heroes = [for (unit in centerZone.units) if (unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02 || unit.kind == Unit.BearMaiden) unit];
+			var playerHeroes = [for (unit in heroes) if (arrayContains(humanPlayers, unit.owner)) unit];
 			@sync for (currentPlayer in state.players) {
-				currentPlayer.objectives.setCurrentVal("survivewaves", currentWave);
+				currentPlayer.objectives.setCurrentVal("closegate", playerHeroes.length);
+			}
+
+			// if we have all of the non-AI heroes here, trigger the victory!
+			if (playerHeroes.length >= heroesNeeded) {
+				player.customVictory("Congratulations! The gates have been sealed for good!", "If you can see this message, something is wrong with the team setup!");
+				// TODO: maybe iterate through clans until we find a living warchief and have them do a cutscene?
 			}
 		}
 
@@ -139,11 +189,17 @@ function regularUpdate (dt : Float) {
 				currentPlayer.customDefeat("A member of the alliance has fallen to the horde!"); // "I understood that reference."
 			}
 		}
+	}
+}
 
-		if (!waveActive && currentWave == maxWaves) {
-			player.customVictory("Congratulations on your survival! For now...", "If you can see this message, something is wrong with the team setup!");
-			// TODO: maybe, after they survive all the waves, mark that objective as done and have them do something else special to close the gate and win?
-			// maybe bring all human-controlled warchiefs & kaijas to map center? new objective like "now's our chance to close the gates once and for all!"
+
+function arrayContains(array : Dynamic, value : Dynamic) : Bool {
+	var contains = false;
+	for (item in array) {
+		if (item == value) {
+			contains = true;
+			break;
 		}
 	}
+	return contains;
 }
