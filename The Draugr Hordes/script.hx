@@ -5,22 +5,23 @@ var homeZones = [for(i in [85, 106, 110, 221, 227, 219, 169, 176]) getZone(i)];
 var waveUnitTypes = [Unit.Death, Unit.Valkyrie, Unit.UndeadGiant];
 var waveContents = [ // number of each unit type to send in each wave
 	[2, 0, 0],
-	[3, 0, 0],
 	[4, 0, 0],
 	[4, 1, 0],
-	[6, 1, 0],
-	[6, 2, 0],
-	[8, 2, 0],
-	[8, 2, 1],
-	[10, 2, 1],
-	[10, 4, 1],
-	[12, 4, 1],
-	[12, 4, 2]
+	[4, 2, 0],
+	[3, 2, 1],
+	[3, 3, 1],
+	[2, 3, 2],
+	[2, 4, 2],
+	[1, 4, 3],
+	[1, 5, 3],
+	[0, 5, 4]
 ];
 var waveUnits = [[], [], [], [], [], [], [], []];
 var maxWaves = waveContents.length;
 var currentWave = 0;
 var wavePlayerIndex = 0;
+var waveSpawnTicker = 0;
+var waveSpawnDelay = 2;
 var wavesOver = false;
 var waveActive = false;
 var sendingWave = false;
@@ -102,32 +103,36 @@ function regularUpdate (dt : Float) {
 				waveActive = true;
 				++currentWave;
 				wavePlayerIndex = 0;
+				waveSpawnTicker = 0;
 				buffedWaves = [for(i in 0...wavesToBuff) randomInt(homeZones.length)];
 			}
-			// since the game crashes if we spawn too many units, we'll do one clan per update
+			// since the game crashes if we spawn too many units too quickly, we'll do one clan every few updates
 			if (sendingWave) {
-				var currentWaveContents = waveContents[currentWave - 1];
-				var currentPlayer = homeZones[wavePlayerIndex].owner;
-				var waveBuffed = arrayContains(buffedWaves, wavePlayerIndex);
-				var unitIndex = 0;
-				for (unitType in waveUnitTypes) {
-					var unitCount = currentWaveContents[unitIndex];
-					if (waveBuffed) {
-						unitCount = toInt(unitCount * buffMultiplier);
+				if (waveSpawnTicker % waveSpawnDelay == 0) {
+					var currentWaveContents = waveContents[currentWave - 1];
+					var currentPlayer = homeZones[wavePlayerIndex].owner;
+					var waveBuffed = arrayContains(buffedWaves, wavePlayerIndex);
+					var unitIndex = 0;
+					for (unitType in waveUnitTypes) {
+						var unitCount = currentWaveContents[unitIndex];
+						if (waveBuffed) {
+							unitCount = toInt(unitCount * buffMultiplier);
+						}
+						if (unitCount > 0) {
+							var newUnits = centerZone.addUnit(unitType, unitCount, null, false);
+							waveUnits[wavePlayerIndex] = waveUnits[wavePlayerIndex].concat(newUnits);
+						}
+						++unitIndex;
 					}
-					if (unitCount > 0) {
-						var newUnits = centerZone.addUnit(unitType, unitCount, null, false);
-						waveUnits[wavePlayerIndex] = waveUnits[wavePlayerIndex].concat(newUnits);
+					launchAttackPlayer(waveUnits[wavePlayerIndex], currentPlayer);
+					var message = "The undead are coming" + (waveBuffed ? ", and there appear to be more than usual!" : "!");
+					currentPlayer.genericNotify(message, waveUnits[wavePlayerIndex][0]);
+					++wavePlayerIndex;
+					if (wavePlayerIndex >= homeZones.length) {
+						sendingWave = false;
 					}
-					++unitIndex;
 				}
-				launchAttackPlayer(waveUnits[wavePlayerIndex], currentPlayer);
-				var message = waveBuffed ? "An extra-large wave of undead are coming!" : "The undead are coming!";
-				currentPlayer.genericNotify(message, waveUnits[wavePlayerIndex][0]);
-				++wavePlayerIndex;
-				if (wavePlayerIndex >= homeZones.length) {
-					sendingWave = false;
-				}
+				++waveSpawnTicker;
 			}
 
 			// every so often, re-send the attack order in case any units decolonize a tile and decide to chill there
