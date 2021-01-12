@@ -146,12 +146,17 @@ function regularUpdate (dt : Float) {
 			}
 
 			// every so often, re-send the attack order in case any units decolonize a tile and decide to chill there
+			// ideally we do this not on a timer but on a decolonization event, but idk if that's possible
 			if (waveActive && toInt(state.time) % 15 == 0) {
 				var playerIndex = 0;
 				for (homeZone in homeZones) {
 					if (waveUnits[playerIndex].length > 0) {
-						var remainingPath = [for (zoneId in wavePaths[playerIndex]) if (getZone(zoneId).owner != null) zoneId];
-						launchAttack(waveUnits[playerIndex], remainingPath, false);
+						var targetIndex = wavePaths[playerIndex].length;
+						var validTarget = false;
+						while (!validTarget && targetIndex > 0) {
+							--targetIndex;
+							validTarget = launchAttack(waveUnits[playerIndex], [wavePaths[playerIndex][targetIndex]], false);
+						}
 					}
 					++playerIndex;
 				}
