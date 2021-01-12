@@ -1,6 +1,16 @@
-var heroesNeeded = [for (currentPlayer in state.players) if (!currentPlayer.isAI) currentPlayer].length;
+var humanPlayers = [for (currentPlayer in state.players) if (!currentPlayer.isAI) currentPlayer];
 var centerZone = getZone(161);
-var homeZones = [for (i in [85, 106, 110, 221, 227, 219, 169, 176]) getZone(i)];
+var homeZones = [for (i in [85, 106, 119, 221, 227, 219, 169, 176]) getZone(i)];
+var wavePaths = [
+	[142, 128, 117, 105, 85],
+	[145, 133, 125, 112, 106],
+	[150, 138, 122, 131, 119],
+	[166, 171, 193, 213, 221],
+	[173, 194, 204, 209, 227],
+	[173, 187, 192, 208, 219],
+	[166, 158, 170, 159, 169],
+	[164, 155, 146, 168, 176]
+];
 var waveUnitTypes = [Unit.Death, Unit.Valkyrie, Unit.UndeadGiant];
 var waveContents = [ // number of each unit type to send in each wave
 	[2, 0, 0],
@@ -101,6 +111,7 @@ function regularUpdate (dt : Float) {
 				++currentWave;
 				wavePlayerIndex = 0;
 				waveSpawnTicker = 0;
+				// we aren't ensuring that the players chosen to get buffed waves are human or unique, we'll let them get lucky
 				buffedWaves = [for (i in 0...wavesToBuff) randomInt(homeZones.length)];
 			}
 			// since the game crashes if we spawn too many units too quickly, we'll do one clan every few updates
@@ -108,22 +119,24 @@ function regularUpdate (dt : Float) {
 				if (waveSpawnTicker % waveSpawnDelay == 0) {
 					var currentWaveContents = waveContents[currentWave - 1];
 					var currentPlayer = homeZones[wavePlayerIndex].owner;
-					var waveBuffed = arrayContains(buffedWaves, wavePlayerIndex);
-					var unitIndex = 0;
-					for (unitType in waveUnitTypes) {
-						var unitCount = currentWaveContents[unitIndex];
-						if (waveBuffed) {
-							unitCount = toInt(unitCount * buffMultiplier);
+					if (!currentPlayer.isAI) { // we don't actually want to send waves to the AI, they'd lose too quickly
+						var waveBuffed = arrayContains(buffedWaves, wavePlayerIndex);
+						var unitIndex = 0;
+						for (unitType in waveUnitTypes) {
+							var unitCount = currentWaveContents[unitIndex];
+							if (waveBuffed) {
+								unitCount = toInt(unitCount * buffMultiplier);
+							}
+							if (unitCount > 0) {
+								var newUnits = centerZone.addUnit(unitType, unitCount, null, false);
+								waveUnits[wavePlayerIndex] = waveUnits[wavePlayerIndex].concat(newUnits);
+							}
+							++unitIndex;
 						}
-						if (unitCount > 0) {
-							var newUnits = centerZone.addUnit(unitType, unitCount, null, false);
-							waveUnits[wavePlayerIndex] = waveUnits[wavePlayerIndex].concat(newUnits);
-						}
-						++unitIndex;
+						launchAttack(waveUnits[wavePlayerIndex], wavePaths[wavePlayerIndex], false);
+						var message = "The undead are coming" + (waveBuffed ? ", and there appear to be more than usual!" : "!");
+						currentPlayer.genericNotify(message, waveUnits[wavePlayerIndex][0]); // TODO: figure out why the alerts don't always show up?
 					}
-					launchAttackPlayer(waveUnits[wavePlayerIndex], currentPlayer);
-					var message = "The undead are coming" + (waveBuffed ? ", and there appear to be more than usual!" : "!");
-					currentPlayer.genericNotify(message, waveUnits[wavePlayerIndex][0]);
 					++wavePlayerIndex;
 					if (wavePlayerIndex >= homeZones.length) {
 						sendingWave = false;
@@ -133,11 +146,12 @@ function regularUpdate (dt : Float) {
 			}
 
 			// every so often, re-send the attack order in case any units decolonize a tile and decide to chill there
-			if (waveActive && randomInt(10) == 0) {
+			if (waveActive && toInt(state.time) % 15 == 0) {
 				var playerIndex = 0;
 				for (homeZone in homeZones) {
 					if (waveUnits[playerIndex].length > 0) {
-						launchAttackPlayer(waveUnits[playerIndex], homeZone.owner);
+						var remainingPath = [for (zoneId in wavePaths[playerIndex]) if (getZone(zoneId).owner != null) zoneId];
+						launchAttack(waveUnits[playerIndex], remainingPath, false);
 					}
 					++playerIndex;
 				}
@@ -147,17 +161,19 @@ function regularUpdate (dt : Float) {
 			waveUnits = [for (waveUnitGroup in waveUnits) [for (waveUnit in waveUnitGroup) if (waveUnit.life > 0) waveUnit]];
 
 			// if the waves were all cleared, update the objective progress
-			var waveCleared = true;
-			for (waveUnitGroup in waveUnits) {
-				if (waveUnitGroup.length > 0) {
-					waveCleared = false;
-					break;
+			if (!sendingWave) {
+				var waveCleared = true;
+				for (waveUnitGroup in waveUnits) {
+					if (waveUnitGroup.length > 0) {
+						waveCleared = false;
+						break;
+					}
 				}
-			}
-			if (waveActive && waveCleared) {
-				waveActive = false;
-				@sync for (currentPlayer in state.players) {
-					currentPlayer.objectives.setCurrentVal("survivewaves", currentWave);
+				if (waveActive && waveCleared) {
+					waveActive = false;
+					@sync for (currentPlayer in state.players) {
+						currentPlayer.objectives.setCurrentVal("survivewaves", currentWave);
+					}
 				}
 			}
 
@@ -192,7 +208,7 @@ function regularUpdate (dt : Float) {
 			var foes = [for (unit in centerZone.units) if (unit.isFoe) unit];
 			var warchiefs = [for (unit in centerZone.units) if (unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02) unit];
 			var playerWarchiefs = [for (unit in warchiefs) if (!unit.owner.isAI) unit];
-			if (foes.length == 0 && playerWarchiefs.length >= heroesNeeded) {
+			if (foes.length == 0 && playerWarchiefs.length >= humanPlayers.length) {
 				invokeAll("playFinishCutscene", []);
 			}
 		}
@@ -256,6 +272,7 @@ function playFinishCutscene () {
 	};
 	wait(2);
 	shakeCamera();
+	// TODO: select center building and deactivate it to make it stop glowing? can make it global and orient/move camera to it instead of (472, 455)
 	wait(1);
 	setPause(false);
 	inCutscene = false;
