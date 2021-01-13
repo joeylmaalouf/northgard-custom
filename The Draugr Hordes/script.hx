@@ -206,6 +206,12 @@ function regularUpdate (dt : Float) {
 				@sync for (currentPlayer in state.players) {
 					currentPlayer.objectives.setVisible("closegate", true);
 				}
+				killFoes([
+					{z: centerZone.id, u: Unit.Death, nb: 100},
+					{z: centerZone.id, u: Unit.Valkyrie, nb: 100},
+					{z: centerZone.id, u: Unit.UndeadGiant, nb: 100}
+				]);
+				centerZone.addUnit(Unit.Valkyrie, humanPlayers.length * 3, null, false);
 			}
 		}
 		else {
