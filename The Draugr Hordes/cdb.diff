@@ -1,25 +1,5 @@
 {
 	"building": {
-		"Muspell": {
-			"props": {
-				"spawnFoe": null,
-				"spawnSpeed": 0,
-				"spawnMax": 0
-			}
-		},
-		"MuspellConquest": {
-			"props": {
-				"spawnFoe": null,
-				"spawnSpeed": 0,
-				"spawnMax": 0
-			}
-		},
-		"Niflheim": {
-			"props": {
-				"spawnFoe": null,
-				"spawnMax": 0
-			}
-		},
 		"Helheim": {
 			"props": {
 				"spawnFoe": null,

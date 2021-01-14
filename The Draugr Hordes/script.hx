@@ -207,6 +207,8 @@ function regularUpdate (dt : Float) {
 				@sync for (currentPlayer in state.players) {
 					currentPlayer.objectives.setVisible("closegate", true);
 				}
+				state.events.setEvent(Event.FeastEnd, 0); // dummy event to clear the leftover invasion event from the timeline
+				// the reinforcements events might have made map center too challlenging, so let's make it reasonable
 				killFoes([
 					{z: centerZone.id, u: Unit.Death, nb: 100},
 					{z: centerZone.id, u: Unit.Valkyrie, nb: 100},
