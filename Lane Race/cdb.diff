@@ -1,0 +1,13 @@
+{
+	"building": {
+		"ScoutCamp": {
+			"props": {
+				"disabledForClans": [
+					{
+						"clan": "Wolf"
+					}
+				]
+			}
+		}
+	}
+}
