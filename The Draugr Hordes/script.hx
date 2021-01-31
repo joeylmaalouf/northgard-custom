@@ -28,20 +28,25 @@ var waveContents = [ // number of each unit type to send in each wave
 ];
 var waveUnits = [[], [], [], [], [], [], [], []];
 var maxWaves = waveContents.length;
-var currentWave = 0;
-var wavePlayerIndex = 0;
-var waveSpawnTicker = 0;
-var waveSpawnDelay = 2;
-var wavesOver = false;
 var waveActive = false;
-var sendingWave = false;
+var currentWave = 0;
 var waveOffset = 270;
 var waveCooldown = 360;
 var warningDelay = 120;
 var wavesToBuff = 2;
 var buffedWaves = [];
 var buffMultiplier = 1.5;
+var sendingWave = false;
+var waveSpawnPlayerIndex = 0;
+var waveSpawnTicker = 0;
+var waveSpawnDelay = 4;
+var reissuingAttack = false;
+var waveAttackPlayerIndex = 0;
+var waveAttackTicker = 0;
+var waveAttackDelay = 4;
+var wavesOver = false;
 var inCutscene = false;
+var helheimGate = null;
 
 
 function saveState () {
@@ -87,6 +92,14 @@ function onFirstLaunch () {
 
 		// disable the normal random events
 		noEvent();
+
+		// get a reference to the Gate of Helheim for later use in the cutscenes
+		for (building in centerZone.buildings) {
+			if (building.kind == Building.Helheim) {
+				helheimGate = building;
+				break;
+			}
+		}
 	}
 }
 
@@ -110,8 +123,14 @@ function regularUpdate (dt : Float) {
 				sendingWave = true;
 				waveActive = true;
 				++currentWave;
-				wavePlayerIndex = 0;
+				waveSpawnPlayerIndex = 0;
 				waveSpawnTicker = 0;
+				// let's occasionally clear map center of any (laggy) passive buildup, since it's uncolonizable anyway
+				killFoes([
+					{z: centerZone.id, u: Unit.Death, nb: 50},
+					{z: centerZone.id, u: Unit.Valkyrie, nb: 50},
+					{z: centerZone.id, u: Unit.UndeadGiant, nb: 50}
+				]);
 				// we aren't ensuring that the players chosen to get buffed waves are human or unique, we'll let them get lucky
 				buffedWaves = [for (i in 0...wavesToBuff) randomInt(homeZones.length)];
 			}
@@ -119,9 +138,9 @@ function regularUpdate (dt : Float) {
 			if (sendingWave) {
 				if (waveSpawnTicker % waveSpawnDelay == 0) {
 					var currentWaveContents = waveContents[currentWave - 1];
-					var currentPlayer = homeZones[wavePlayerIndex].owner;
+					var currentPlayer = homeZones[waveSpawnPlayerIndex].owner;
 					if (!currentPlayer.isAI) { // we don't actually want to send waves to the AI, they'd lose too quickly
-						var waveBuffed = arrayContains(buffedWaves, wavePlayerIndex);
+						var waveBuffed = arrayContains(buffedWaves, waveSpawnPlayerIndex);
 						var unitIndex = 0;
 						for (unitType in waveUnitTypes) {
 							var unitCount = currentWaveContents[unitIndex];
@@ -130,16 +149,16 @@ function regularUpdate (dt : Float) {
 							}
 							if (unitCount > 0) {
 								var newUnits = centerZone.addUnit(unitType, unitCount, null, false);
-								waveUnits[wavePlayerIndex] = waveUnits[wavePlayerIndex].concat(newUnits);
+								waveUnits[waveSpawnPlayerIndex] = waveUnits[waveSpawnPlayerIndex].concat(newUnits);
 							}
 							++unitIndex;
 						}
-						launchAttack(waveUnits[wavePlayerIndex], wavePaths[wavePlayerIndex], false);
+						launchAttack(waveUnits[waveSpawnPlayerIndex], wavePaths[waveSpawnPlayerIndex], false);
 						var message = "The undead are coming" + (waveBuffed ? ", and there appear to be more than usual!" : "!");
-						currentPlayer.genericNotify(message, waveUnits[wavePlayerIndex][0]); // TODO: figure out why the alerts don't always show up?
+						currentPlayer.genericNotify(message, waveUnits[waveSpawnPlayerIndex][0]); // TODO: figure out why the alerts don't always show up?
 					}
-					++wavePlayerIndex;
-					if (wavePlayerIndex >= homeZones.length) {
+					++waveSpawnPlayerIndex;
+					if (waveSpawnPlayerIndex >= homeZones.length) {
 						sendingWave = false;
 					}
 				}
@@ -148,19 +167,25 @@ function regularUpdate (dt : Float) {
 
 			// every so often, re-send the attack order in case any units decolonize a tile and decide to chill there
 			// ideally we do this not on a timer but on a decolonization event, but idk if that's possible
-			if (waveActive && toInt(state.time) % 15 == 0) {
-				var playerIndex = 0;
-				for (homeZone in homeZones) {
-					if (waveUnits[playerIndex].length > 0) {
-						var targetIndex = wavePaths[playerIndex].length;
+			if (!reissuingAttack && waveActive && toInt(state.time) % 20 == 0) {
+				reissuingAttack = true;
+				waveAttackPlayerIndex = 0;
+				waveAttackTicker = 0;
+			}
+			// in yet another attempt to avoid crashing, we'll do one group at a time just like with spawning above
+			if (reissuingAttack) {
+				if (waveAttackTicker % waveAttackDelay == 0) {
+					if (waveUnits[waveAttackPlayerIndex].length > 0) {
+						var targetIndex = wavePaths[waveAttackPlayerIndex].length;
 						var validTarget = false;
 						while (!validTarget && targetIndex > 0) {
 							--targetIndex;
-							validTarget = launchAttack(waveUnits[playerIndex], [wavePaths[playerIndex][targetIndex]], false);
+							validTarget = launchAttack(waveUnits[waveAttackPlayerIndex], [wavePaths[waveAttackPlayerIndex][targetIndex]], false);
 						}
 					}
-					++playerIndex;
+					++waveAttackPlayerIndex;
 				}
+				++waveAttackTicker;
 			}
 
 			// remove killed foes from our tracked list
@@ -210,9 +235,9 @@ function regularUpdate (dt : Float) {
 				state.events.setEvent(Event.FeastEnd, 0); // dummy event to clear the leftover invasion event from the timeline
 				// the reinforcements events might have made map center too challlenging, so let's make it reasonable
 				killFoes([
-					{z: centerZone.id, u: Unit.Death, nb: 100},
-					{z: centerZone.id, u: Unit.Valkyrie, nb: 100},
-					{z: centerZone.id, u: Unit.UndeadGiant, nb: 100}
+					{z: centerZone.id, u: Unit.Death, nb: 50},
+					{z: centerZone.id, u: Unit.Valkyrie, nb: 50},
+					{z: centerZone.id, u: Unit.UndeadGiant, nb: 50}
 				]);
 				centerZone.addUnit(Unit.Valkyrie, humanPlayers.length * 3, null, false);
 			}
@@ -249,7 +274,7 @@ function playInspireCutscene (warchief : Unit) {
 	}, warchief, 5);
 	wait(1);
 	followUnit(null);
-	moveCamera({x: 472, y: 455});
+	moveCamera({x: helheimGate.x, y: helheimGate.y});
 	wait(1);
 	setPause(false);
 	inCutscene = false;
@@ -259,7 +284,7 @@ function playInspireCutscene (warchief : Unit) {
 function playFinishCutscene () {
 	inCutscene = true;
 	setPause(true);
-	moveCamera({x: 472, y: 455});
+	moveCamera({x: helheimGate.x, y: helheimGate.y});
 	var centerPositions = [
 		[469, 440],
 		[459, 450],
@@ -276,7 +301,7 @@ function playFinishCutscene () {
 		var warchief = summonWarchief(homeZone.owner, centerZone, centerPositions[playerIndex][0], centerPositions[playerIndex][1]);
 		warchief.setControlable(false);
 		warchief.canPatrol = false;
-		warchief.orientToPosSmooth(472, 455, 30);
+		warchief.orientToTargetSmooth(helheimGate, 30);
 		warchiefs.push(warchief);
 		++playerIndex;
 	}
@@ -286,7 +311,7 @@ function playFinishCutscene () {
 	};
 	wait(2);
 	shakeCamera();
-	// TODO: select center building and deactivate it to make it stop glowing? can make it global and orient/move camera to it instead of (472, 455)
+	helheimGate.setActive(false);
 	wait(1);
 	setPause(false);
 	inCutscene = false;
