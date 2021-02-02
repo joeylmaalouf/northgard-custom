@@ -29,7 +29,7 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VYggdrasil);
 	if (isHost()) {
 		@sync for (currentPlayer in state.players) {
-			currentPlayer.objectives.add("centervictory", "To win this free-for-all, you need to hold map center as you would normally. What's not normal, however, is how you get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland! You can colonize up to " + maxLandingPoints + " landing points from afar.");
+			currentPlayer.objectives.add("centervictory", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland! You can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them.");
 			for (beach in mainlandBeachZones) {
 				var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
 				var transportBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal && building.kind != Building.Stones && building.kind != Building.IronDeposit) "[" + building.kind + "]"].join(", ");
