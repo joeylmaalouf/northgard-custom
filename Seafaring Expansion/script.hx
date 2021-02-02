@@ -218,7 +218,7 @@ function sendFrom (currentPlayer : Player, zoneId : Int) {
 
 
 // I wish we could use actual drakkar here, but they need to be given very specific src/dst zones or they won't appear at all and no units will spawn,
-// and with so many possible src/dst combinations of every town hall and every mainland beach, that's just not feasible here
+// and with so many possible src/dst combinations of every town hall and every mainland beach, that's not feasible here, so we'll just teleport them over
 function sendUnits (currentPlayer : Player, srcZoneId : Int, dstZoneId : Int) {
 	var drakkarIndices = [];
 	var zoneUnits = getZone(srcZoneId).units;
@@ -232,7 +232,8 @@ function sendUnits (currentPlayer : Player, srcZoneId : Int, dstZoneId : Int) {
 	drakkarIndices.reverse();
 	for (unitIndex in drakkarIndices) {
 		var unit = zoneUnits[unitIndex];
-		targetZone.addUnit(unit.kind, 1, currentPlayer);
-		unit.die(true, false);
+		unit.zone = targetZone;
+		unit.setPosition(targetZone.x + (15 - randomInt(31)), targetZone.y + (15 - randomInt(31)));
+		unit.stopJob();
 	}
 }
