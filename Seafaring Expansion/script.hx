@@ -3,6 +3,7 @@ var mainlandBeachZones = [for (i in [118, 115, 104, 95, 103, 110, 123, 139, 154,
 var homeZones = [for (i in [70, 30, 63, 155, 250, 304, 267, 174]) getZone(i)];
 var landingPoints = [ [], [], [], [], [], [], [], [] ];
 var maxLandingPoints = 2;
+var maxUnitsPerDrakkar = 12;
 var specialColonizeCost = 200;
 
 
@@ -29,7 +30,8 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VYggdrasil);
 	if (isHost()) {
 		@sync for (currentPlayer in state.players) {
-			currentPlayer.objectives.add("centervictory", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland! You can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them.");
+			currentPlayer.objectives.add("summary", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland!");
+			currentPlayer.objectives.add("details", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you might have to click the button multiple times for larger groups!");
 			for (beach in mainlandBeachZones) {
 				var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
 				var transportBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal && building.kind != Building.Stones && building.kind != Building.IronDeposit) "[" + building.kind + "]"].join(", ");
@@ -195,7 +197,7 @@ function specialColonize (currentPlayer : Player, zoneId : Int) {
 		&& currentPlayer.getResource(Resource.Money) >= specialColonizeCost
 		&& beach.owner == null
 		&& beach.colonizeBy == null
-		&& [for (unit in beach.units) if (!unit.isOwner(currentPlayer)) unit].length == 0
+		&& [for (unit in beach.units) if (!unit.isOwner(currentPlayer) && unit.kind != Unit.Sheep) unit].length == 0
 	) {
 		currentPlayer.addResource(Resource.Money, -specialColonizeCost);
 		currentPlayer.takeControl(beach);
@@ -227,6 +229,10 @@ function sendUnits (currentPlayer : Player, srcZoneId : Int, dstZoneId : Int) {
 		var unit = zoneUnits[unitIndex];
 		if (unit.owner == currentPlayer && unit.kind != Unit.Sailor) {
 			drakkarIndices.push(unitIndex);
+		}
+		// the game crashes if we try to send too many units at once
+		if (unitIndex >= maxUnitsPerDrakkar) {
+			break;
 		}
 	}
 	drakkarIndices.reverse();
