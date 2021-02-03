@@ -30,32 +30,34 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VYggdrasil);
 	if (isHost()) {
 		@sync for (currentPlayer in state.players) {
-			currentPlayer.objectives.add("summary", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland!");
-			currentPlayer.objectives.add("details", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you might have to click the button multiple times for larger groups!");
-			// we loop twice because we want to show all of the send/retrieve buttons above all of the colonize buttons
-			for (beach in mainlandBeachZones) {
-				var transportBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal && building.kind != Building.Stones && building.kind != Building.IronDeposit) "[" + building.kind + "]"].join(", ");
-				currentPlayer.objectives.add(
-					"sendTo" + beach.id,
-					"You can send units from your [TownHall] to the beach with: " + transportBuildingList,
-					{ visible: false },
-					{ name: "Send", action: "invokeSendTo" + beach.id }
-				);
-				currentPlayer.objectives.add(
-					"sendFrom" + beach.id,
-					"You can send units back to your [TownHall] from the beach with: " + transportBuildingList,
-					{ visible: false },
-					{ name: "Retrieve", action: "invokeSendFrom" + beach.id }
-				);
-			}
-			for (beach in mainlandBeachZones) {
-				var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
-				currentPlayer.objectives.add(
-					"colonize" + beach.id,
-					"You can pay " + specialColonizeCost + " [Money] to colonize the beach with: " + colonizeBuildingList,
-					{ visible: false },
-					{ name: "Colonize", action: "invokeSpecialColonize" + beach.id }
-				);
+			if (!currentPlayer.isAI) {
+				currentPlayer.objectives.add("summary", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland!");
+				currentPlayer.objectives.add("details", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you might have to click the button multiple times for larger groups!");
+				// we loop twice because we want to show all of the send/retrieve buttons above all of the colonize buttons
+				for (beach in mainlandBeachZones) {
+					var transportBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal && building.kind != Building.Stones && building.kind != Building.IronDeposit) "[" + building.kind + "]"].join(", ");
+					currentPlayer.objectives.add(
+						"sendTo" + beach.id,
+						"You can send units from your [TownHall] to the beach with: " + transportBuildingList,
+						{ visible: false },
+						{ name: "Send", action: "invokeSendTo" + beach.id }
+					);
+					currentPlayer.objectives.add(
+						"sendFrom" + beach.id,
+						"You can send units back to your [TownHall] from the beach with: " + transportBuildingList,
+						{ visible: false },
+						{ name: "Retrieve", action: "invokeSendFrom" + beach.id }
+					);
+				}
+				for (beach in mainlandBeachZones) {
+					var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
+					currentPlayer.objectives.add(
+						"colonize" + beach.id,
+						"You can pay " + specialColonizeCost + " [Money] to colonize the beach with: " + colonizeBuildingList,
+						{ visible: false },
+						{ name: "Colonize", action: "invokeSpecialColonize" + beach.id }
+					);
+				}
 			}
 
 			// reveal the map center at the start
@@ -85,7 +87,7 @@ function regularUpdate (dt : Float) {
 		if (state.time % 3 < 0.1) {
 			@sync for (playerIndex in 0 ... homeZones.length) {
 				var currentPlayer = homeZones[playerIndex].owner;
-				if (currentPlayer != null) {
+				if (currentPlayer != null && !currentPlayer.isAI) {
 					// we want to process the landing points first because if we lose any of them, we want the colonize options logic below to pick them up
 					for (landingPoint in landingPoints[playerIndex]) {
 						if (getZone(landingPoint).owner != currentPlayer) {
