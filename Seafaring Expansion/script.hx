@@ -32,15 +32,9 @@ function onFirstLaunch () {
 		@sync for (currentPlayer in state.players) {
 			currentPlayer.objectives.add("summary", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland!");
 			currentPlayer.objectives.add("details", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you might have to click the button multiple times for larger groups!");
+			// we loop twice because we want to show all of the send/retrieve buttons above all of the colonize buttons
 			for (beach in mainlandBeachZones) {
-				var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
 				var transportBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal && building.kind != Building.Stones && building.kind != Building.IronDeposit) "[" + building.kind + "]"].join(", ");
-				currentPlayer.objectives.add(
-					"colonize" + beach.id,
-					"You can pay " + specialColonizeCost + " [Money] to colonize the beach with: " + colonizeBuildingList,
-					{ visible: false },
-					{ name: "Colonize", action: "invokeSpecialColonize" + beach.id }
-				);
 				currentPlayer.objectives.add(
 					"sendTo" + beach.id,
 					"You can send units from your [TownHall] to the beach with: " + transportBuildingList,
@@ -52,6 +46,15 @@ function onFirstLaunch () {
 					"You can send units back to your [TownHall] from the beach with: " + transportBuildingList,
 					{ visible: false },
 					{ name: "Retrieve", action: "invokeSendFrom" + beach.id }
+				);
+			}
+			for (beach in mainlandBeachZones) {
+				var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
+				currentPlayer.objectives.add(
+					"colonize" + beach.id,
+					"You can pay " + specialColonizeCost + " [Money] to colonize the beach with: " + colonizeBuildingList,
+					{ visible: false },
+					{ name: "Colonize", action: "invokeSpecialColonize" + beach.id }
 				);
 			}
 
@@ -83,14 +86,7 @@ function regularUpdate (dt : Float) {
 			@sync for (playerIndex in 0 ... homeZones.length) {
 				var currentPlayer = homeZones[playerIndex].owner;
 				if (currentPlayer != null) {
-					for (beach in mainlandBeachZones) {
-						currentPlayer.objectives.setVisible("colonize" + beach.id,
-							landingPoints[playerIndex].length < maxLandingPoints
-							&& currentPlayer.hasDiscovered(beach)
-							&& beach.owner == null
-							&& beach.colonizeBy == null
-						);
-					}
+					// we want to process the landing points first because if we lose any of them, we want the colonize options logic below to pick them up
 					for (landingPoint in landingPoints[playerIndex]) {
 						if (getZone(landingPoint).owner != currentPlayer) {
 							landingPoints[playerIndex].remove(landingPoint);
@@ -101,6 +97,14 @@ function regularUpdate (dt : Float) {
 							currentPlayer.objectives.setVisible("sendTo" + landingPoint, true);
 							currentPlayer.objectives.setVisible("sendFrom" + landingPoint, true);
 						}
+					}
+					for (beach in mainlandBeachZones) {
+						currentPlayer.objectives.setVisible("colonize" + beach.id,
+							landingPoints[playerIndex].length < maxLandingPoints
+							&& currentPlayer.hasDiscovered(beach)
+							&& beach.owner == null
+							&& beach.colonizeBy == null
+						);
 					}
 				}
 			}
@@ -225,21 +229,24 @@ function sendUnits (currentPlayer : Player, srcZoneId : Int, dstZoneId : Int) {
 	var drakkarIndices = [];
 	var zoneUnits = getZone(srcZoneId).units;
 	var targetZone = getZone(dstZoneId);
+	// we have to loop twice, once to get the indices and again to pull out the units in reverse, since the list of units in the zone will be updated as we go
 	for (unitIndex in 0 ... zoneUnits.length) {
 		var unit = zoneUnits[unitIndex];
 		if (unit.owner == currentPlayer && unit.kind != Unit.Sailor) {
 			drakkarIndices.push(unitIndex);
 		}
 		// the game crashes if we try to send too many units at once
-		if (unitIndex >= maxUnitsPerDrakkar) {
+		if (drakkarIndices.length >= maxUnitsPerDrakkar) {
 			break;
 		}
 	}
 	drakkarIndices.reverse();
 	for (unitIndex in drakkarIndices) {
 		var unit = zoneUnits[unitIndex];
+		// if we don't set the unit's zone, even if we update its position, it'll try to walk back to its previous zone
 		unit.zone = targetZone;
 		unit.setPosition(targetZone.x + (15 - randomInt(31)), targetZone.y + (15 - randomInt(31)));
+		// interrupting their current job will make them immediately try to find something to do in their new zone, even if it's the same job
 		unit.stopJob();
 	}
 }
