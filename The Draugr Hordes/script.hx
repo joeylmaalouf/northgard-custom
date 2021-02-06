@@ -33,6 +33,9 @@ var currentWave = 0;
 var waveOffset = 270;
 var waveCooldown = 360;
 var warningDelay = 120;
+waveOffset = -50;
+waveCooldown = 60;
+warningDelay = 20;
 var wavesToBuff = 2;
 var buffedWaves = [];
 var buffMultiplier = 1.5;
@@ -155,7 +158,7 @@ function regularUpdate (dt : Float) {
 						}
 						launchAttack(waveUnits[waveSpawnPlayerIndex], wavePaths[waveSpawnPlayerIndex], false);
 						var message = "The undead are coming" + (waveBuffed ? ", and there appear to be more than usual!" : "!");
-						currentPlayer.genericNotify(message, waveUnits[waveSpawnPlayerIndex][0]); // TODO: figure out why the alerts don't always show up?
+						currentPlayer.genericNotify(message, waveUnits[waveSpawnPlayerIndex][0]); // TODO: figure out why the alerts sometimes don't show up for some non-host players?
 					}
 					++waveSpawnPlayerIndex;
 					if (waveSpawnPlayerIndex >= homeZones.length) {
@@ -184,26 +187,31 @@ function regularUpdate (dt : Float) {
 						}
 					}
 					++waveAttackPlayerIndex;
+					if (waveAttackPlayerIndex >= homeZones.length) {
+						reissuingAttack = false;
+					}
 				}
 				++waveAttackTicker;
 			}
 
-			// remove killed foes from our tracked list
-			waveUnits = [for (waveUnitGroup in waveUnits) [for (waveUnit in waveUnitGroup) if (waveUnit.life > 0) waveUnit]];
+			// every few seconds, remove killed foes from our tracked list
+			if (state.time % 3 < 0.1) {
+				waveUnits = [for (waveUnitGroup in waveUnits) [for (waveUnit in waveUnitGroup) if (waveUnit.life > 0) waveUnit]];
 
-			// if the waves were all cleared, update the objective progress
-			if (!sendingWave) {
-				var waveCleared = true;
-				for (waveUnitGroup in waveUnits) {
-					if (waveUnitGroup.length > 0) {
-						waveCleared = false;
-						break;
+				// if the groups were all cleared, call the current wave done and update the objective progress
+				if (!sendingWave) {
+					var waveCleared = true;
+					for (waveUnitGroup in waveUnits) {
+						if (waveUnitGroup.length > 0) {
+							waveCleared = false;
+							break;
+						}
 					}
-				}
-				if (waveActive && waveCleared) {
-					waveActive = false;
-					@sync for (currentPlayer in state.players) {
-						currentPlayer.objectives.setCurrentVal("survivewaves", currentWave);
+					if (waveActive && waveCleared) {
+						waveActive = false;
+						@sync for (currentPlayer in state.players) {
+							currentPlayer.objectives.setCurrentVal("survivewaves", currentWave);
+						}
 					}
 				}
 			}
@@ -233,7 +241,7 @@ function regularUpdate (dt : Float) {
 					currentPlayer.objectives.setVisible("closegate", true);
 				}
 				state.events.setEvent(Event.FeastEnd, 0); // dummy event to clear the leftover invasion event from the timeline
-				// the reinforcements events might have made map center too challlenging, so let's make it reasonable
+				// the reinforcements events might have made map center too challenging, so let's make it reasonable
 				killFoes([
 					{z: centerZone.id, u: Unit.Death, nb: 50},
 					{z: centerZone.id, u: Unit.Valkyrie, nb: 50},
