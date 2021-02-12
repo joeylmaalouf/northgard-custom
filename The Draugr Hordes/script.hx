@@ -155,7 +155,10 @@ function regularUpdate (dt : Float) {
 						}
 						launchAttack(waveUnits[waveSpawnPlayerIndex], wavePaths[waveSpawnPlayerIndex], false);
 						var message = "The undead are coming" + (waveBuffed ? ", and there appear to be more than usual!" : "!");
-						currentPlayer.genericNotify(message, waveUnits[waveSpawnPlayerIndex][0]); // TODO: figure out why the alerts sometimes don't show up for some non-host players?
+						var args : Array<Dynamic> = [];
+						args.push(message);
+						args.push(waveUnits[waveSpawnPlayerIndex][0]);
+						invoke(currentPlayer, "displayNotification", args);
 					}
 					++waveSpawnPlayerIndex;
 					if (waveSpawnPlayerIndex >= homeZones.length) {
@@ -264,6 +267,13 @@ function regularUpdate (dt : Float) {
 			}
 		}
 	}
+}
+
+
+function displayNotification (message : String, target : Entity) {
+	// genericNotify doesn't always work when the player reference is not me(),
+	// so we're invoking this function on each player's client as needed
+	me().genericNotify(message, target);
 }
 
 
