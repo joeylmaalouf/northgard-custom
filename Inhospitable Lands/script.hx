@@ -88,7 +88,7 @@ function regularUpdate (dt : Float) {
 				endingWarned = true;
 			}
 			// until we get close to the end, we'll trigger an event every few months to make things that much harder
-			else if ((state.time + eventOffset - eventWarningTime) % eventTimer < 0.1) {
+			else if ((state.time + eventOffset + eventTimer - eventWarningTime) % eventTimer < 0.1) {
 				var eventMonth = ((state.time + eventTimer - eventWarningTime) % 720) / 60; // 0-11, Mar-Feb
 				var eventKind = eventMonth >= 9 ? Event.Blizzard : [Event.Rats, Event.Earthquake][randomInt(2)];
 				state.events.setEvent(eventKind, (eventTimer - eventWarningTime) / 60);
