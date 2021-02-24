@@ -37,7 +37,7 @@ function onFirstLaunch () {
 				currentPlayer.objectives.add("inhospitablelands", "These lands are particularly inhospitable, so disasters will strike more frequently than normal!");
 				currentPlayer.objectives.add("recklessscouts", "Your [Scout]s are a little too reckless for this environment, so while they will explore more quickly, they'll also die immediately afterwards.");
 				currentPlayer.objectives.add("lazyvillagers", "And your [Villager]s are a little lazy when it comes to gathering food, so your [Sheep] will have to pick up the slack. Thankfully, they'll breed new ones each year.");
-				currentPlayer.objectives.add("colonizetree", "To conquer these lands, you must work together to enable one of you to colonize [Yggdrasil] before time is up!");
+				currentPlayer.objectives.add("colonizetree", "To conquer these lands, you must work together to enable one of you to colonize [Yggdrasil] before " + timeLimit / 12 / 60 + " years have passed, or else the World Tree will reclaim these lands!");
 			}
 		}
 
@@ -78,6 +78,7 @@ function regularUpdate (dt : Float) {
 
 		// if time's up and we haven't finished colonizing Yggdrasil, trigger defeat
 		if (state.time > timeLimit) {
+			// TODO: cutscene where everything turns into Naströnd as Yggdrasil takes the island back?
 			@sync for (currentPlayer in state.startPlayers) {
 				currentPlayer.customDefeat("You've failed to take over these lands in time!");
 			}
