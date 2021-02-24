@@ -1,7 +1,7 @@
 var centerZone = getZone(153);
 var humanPlayers = [];
 var endingWarned = false;
-var timeLimit = 60 * 60;
+var timeLimit = 4 * 12 * 60;
 var endWarningTime = 12 * 60;
 var eventWarningTime = 1 * 60;
 var eventOffset = 2 * 60;
@@ -53,6 +53,8 @@ function onFirstLaunch () {
 		addRule(Rule.LethalRuins);
 		// I'd like to use MoreReqHappyFoodConsumption, but it doesn't seem to do anything, so instead we'll have the villagers be lazy
 		addRule(Rule.VillagerStrike);
+		// though we'll compensate a little by giving the town hall a base food income
+		addRule(Rule.ExtraFoodProduce);
 		// but FoodStarterPack also doesn't seem to work, so we'll add the resources ourselves
 		@sync for (currentPlayer in state.players) {
 			currentPlayer.addResource(Resource.Food, 200, false);
