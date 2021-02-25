@@ -3,9 +3,9 @@ var humanPlayers = [];
 var endingWarned = false;
 var timeLimit = 4 * 12 * 60;
 var endWarningTime = 12 * 60;
-var eventWarningTime = 1 * 60;
-var eventOffset = 2 * 60;
+var eventWarningDelay = 2 * 60;
 var eventTimer = 4 * 60;
+var eventOffset = 2 * 60;
 
 
 function saveState () {
@@ -34,7 +34,7 @@ function onFirstLaunch () {
 			if (!currentPlayer.isAI) {
 				humanPlayers.push(currentPlayer);
 				currentPlayer.addBonus({ id: Bonus.BMoreSheeps, isAdvanced: false });
-				currentPlayer.objectives.add("inhospitablelands", "These lands are particularly inhospitable, so disasters will strike more frequently than normal!");
+				currentPlayer.objectives.add("inhospitablelands", "These lands are particularly inhospitable, so disasters will strike more frequently than normal (and with less warning)!");
 				currentPlayer.objectives.add("recklessscouts", "Your [Scout]s are a little too reckless for this environment, so while they will explore more quickly, they'll also die immediately afterwards.");
 				currentPlayer.objectives.add("lazyvillagers", "And your [Villager]s are a little lazy when it comes to gathering food, so your [Sheep] will have to pick up the slack. Thankfully, they'll breed new ones each year.");
 				currentPlayer.objectives.add("colonizetree", "To conquer these lands, you must work together to enable one of you to colonize [Yggdrasil] before " + timeLimit / 12 / 60 + " years have passed, or else the World Tree will reclaim these lands!");
@@ -91,10 +91,10 @@ function regularUpdate (dt : Float) {
 				endingWarned = true;
 			}
 			// until we get close to the end, we'll trigger an event every few months to make things that much harder
-			else if ((state.time + eventOffset + eventTimer - eventWarningTime) % eventTimer < 0.1) {
-				var eventMonth = ((state.time + eventTimer - eventWarningTime) % 720) / 60; // 0-11, Mar-Feb
+			else if ((state.time + eventOffset + eventTimer - eventWarningDelay) % eventTimer < 0.1) {
+				var eventMonth = ((state.time + eventTimer - eventWarningDelay) % 720) / 60; // 0-11, Mar-Feb
 				var eventKind = eventMonth >= 9 ? Event.Blizzard : [Event.Rats, Event.Earthquake][randomInt(2)];
-				state.events.setEvent(eventKind, (eventTimer - eventWarningTime) / 60);
+				state.events.setEvent(eventKind, (eventTimer - eventWarningDelay) / 60);
 			}
 		}
 	}
