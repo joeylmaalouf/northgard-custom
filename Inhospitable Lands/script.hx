@@ -86,7 +86,7 @@ function regularUpdate (dt : Float) {
 
 		if (!endingWarned) {
 			// if we're getting close to the time limit, let the players know
-			if (state.time > (timeLimit - endWarningTime)) {
+			if (state.time >= (timeLimit - endWarningTime + 1)) { // we have to wait a second so the last event before this will actually trigger
 				state.events.setEvent(Event.GameEnd, endWarningTime / 60);
 				endingWarned = true;
 			}
