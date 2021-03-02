@@ -1,16 +1,24 @@
+// TODO: HOW DO I STOP KOBOLDS FROM "COLONIZING" EVERY TILE THEY RUN THROUGH
+
 var homeZones = [225, 101, 97, 215, 179, 147, 242, 124];
 var players : Array<{
 	uid : Int,
 	player : Player,
 	homeZone : Zone,
 	isDead : Bool,
-	hiring : Faction
+	isHiring : Bool,
+	isTargeting : Bool,
+	hiredFaction : Faction,
+	lastHireTime : Float
 }> = [for (zoneId in homeZones) {
 	uid: homeZones.indexOf(zoneId),
 	player: getZone(zoneId).owner,
 	homeZone: getZone(zoneId),
 	isDead: false,
-	hiring: null
+	isHiring: false,
+	isTargeting: false,
+	hiredFaction: null,
+	lastHireTime: 0.0
 }];
 var neutrals : Array<{
 	name : String,
@@ -26,23 +34,24 @@ var neutrals : Array<{
 	{
 		name: "Jotnar", formatName: "Giant", faction: getFaction("Giant"),
 		unit: Unit.Giant, count: 1, homeZone: getZone(170),
-		isDead: false, price: 300, resource: Resource.Food
+		isDead: false, price: 3, resource: Resource.Food // TODO: 3 -> 300
 	},
 	{
 		name: "Kobolds", formatName: "Kobold", faction: getFaction("Kobold"),
 		unit: Unit.Kobold, count: 4, homeZone: getZone(153),
-		isDead: false, price: 300, resource: Resource.Wood
+		isDead: false, price: 3, resource: Resource.Wood // TODO: 3 -> 300
 	},
 	{
 		name: "Myrkalfar", formatName: "Myrkalfar", faction: getFaction("Myrkalfar"),
 		unit: Unit.Myrkalfar, count: 2, homeZone: getZone(146),
-		isDead: false, price: 300, resource: Resource.Money
+		isDead: false, price: 3, resource: Resource.Money // TODO: 3 -> 300
 	}
 ];
 var relationMultiplier = 10;
 var jotnarRelationCap = 9.5; // TODO: 9.9
-var relationToHire = 7.5;
+var relationToHire = 0.0; // TODO: 7.5
 var relationPerIncrease = 1.0;
+var hireCooldown = 10; // TODO: 120
 
 
 function saveState () {
@@ -67,8 +76,9 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VOdinSword);
 	state.removeVictory(VictoryKind.VYggdrasil);
 	if (isHost()) {
-		for (currentPlayer in players) {
-			currentPlayer.player.addResource(Resource.Lore, 180, false); // TODO: remove, and change cdb back to 1/1/2 instead of 10/10/20, and remove red extra starting buildings
+		@sync for (currentPlayer in players) {
+			currentPlayer.player.addResource(Resource.Lore, 180, false); // TODO: remove
+			currentPlayer.player.discoverAll(); // TODO: remove, and change cdb back to 1/1/2 instead of 10/10/20, and remove red extra starting buildings
 			// we'll reveal all of the neutrals at the start for quicker trading
 			for (neutralFaction in neutrals) {
 				currentPlayer.player.discoverZone(neutralFaction.homeZone);
@@ -77,32 +87,38 @@ function onFirstLaunch () {
 			if (!currentPlayer.player.isAI) {
 				currentPlayer.player.objectives.add("victoryExplanation", "These lands are vast and mysterious, and the factions that live here are unlike any beings known to your clan! Maybe you can befriend them while you attempt to gain victory by researching the ancient lore found here?");
 				// we'll want to show each player their own relationship progress with the neutrals
-				currentPlayer.player.objectives.add("progressJotnar", "Your relationship with the [Giant]s (note that this maxes out at " + jotnarRelationCap * relationMultiplier + "%, not 100%, to prevent them from allying with just one faction):", { visible: true, showProgressBar: true, goalVal: 100 });
+				currentPlayer.player.objectives.add("progressJotnar", "Your relationship with the [Giant]s (to prevent them from allying with just one faction, this maxes out at " + jotnarRelationCap * relationMultiplier + "%, not 100%):", { visible: true, showProgressBar: true, goalVal: 100 });
 				currentPlayer.player.objectives.add("progressKobolds", "Your relationship with the [Kobold]s:", { visible: true, showProgressBar: true, goalVal: 100 });
 				currentPlayer.player.objectives.add("progressMyrkalfar", "Your relationship with the [Myrkalfar]s:", { visible: true, showProgressBar: true, goalVal: 100 });
 				// we'll set up objectives for each (human) player to be able to select a neutral faction to hire and a fellow player to target,
 				// but we won't show them until the right conditions are met
 				currentPlayer.player.objectives.add(
 					"hireExplanation",
-					"For the right price, any neutral faction that considers you a friend (75%) will attack your enemies! The better your relationship, the more units they'll send (every 10%)!",
-					{ visible: false }
+					"For the right price, any neutral faction that considers you a friend (75%) will attack your enemies! The better your relationship, the more units they'll send (every 10%)! They do, however, all share a cooldown.",
+					{ visible: false, showProgressBar: true, goalVal: hireCooldown },
+					{ name: "Hire a faction", action: "invokeHiring" }
 				);
 				for (neutralFaction in neutrals) {
 					currentPlayer.player.objectives.add(
 						"hire" + neutralFaction.name,
-						// "Send a group of [" + neutralFaction.formatName + "]s to attack an enemy clan for " + neutralFaction.price + " [" + neutralFaction.resource + "]!",
-						"You can hire [" + neutralFaction.formatName + "]s for " + neutralFaction.price + " [" + neutralFaction.resource + "]!",
+						"You can hire a group of [" + neutralFaction.formatName + "]s to attack an enemy clan for " + neutralFaction.price + " [" + neutralFaction.resource + "]!",
 						{ visible: false },
 						{ name: "Hire", action: "invokeHire" + neutralFaction.name }
 					);
 				}
+				currentPlayer.player.objectives.add(
+					"cancelHire",
+					"You can also return to the main overview without hiring anyone.",
+					{ visible: false },
+					{ name: "Cancel", action: "invokeCancel" }
+				);
 				currentPlayer.player.objectives.add(
 					"selectTarget",
 					"Select the target of your attack:",
 					{ visible: false }
 				);
 				for (otherPlayer in players) {
-					if (otherPlayer.player != currentPlayer.player) {
+					if (otherPlayer.uid != currentPlayer.uid) {
 						currentPlayer.player.objectives.add(
 							"target" + otherPlayer.uid,
 							"Player " + (otherPlayer.uid + 1) + ", " + otherPlayer.player.name,
@@ -113,9 +129,9 @@ function onFirstLaunch () {
 				}
 				currentPlayer.player.objectives.add(
 					"cancelTarget",
-					"nobody at all",
+					"Never mind!",
 					{ visible: false },
-					{ name: "Cancel", action: "invokeHireNull" }
+					{ name: "Cancel", action: "invokeCancel" }
 				);
 			}
 		}
@@ -132,13 +148,13 @@ function onEachLaunch () {
 function regularUpdate (dt : Float) {
 	if (isHost()) {
 		// we'll keep track of defeated players so we don't let the others raid them
-		for (currentPlayer in players) {
+		@sync for (currentPlayer in players) {
 			if (!currentPlayer.isDead && currentPlayer.homeZone.owner != currentPlayer.player) {
 				currentPlayer.isDead = true;
 			}
 		}
 		// we'll keep track of defeated factions so we don't let players hire them
-		for (neutralFaction in neutrals) {
+		@sync for (neutralFaction in neutrals) {
 			if (!neutralFaction.isDead && neutralFaction.homeZone.getUnit(neutralFaction.unit) == null) {
 				neutralFaction.isDead = true;
 			}
@@ -154,7 +170,7 @@ function regularUpdate (dt : Float) {
 				break;
 			}
 		}
-		for (currentPlayer in players) {
+		@sync for (currentPlayer in players) {
 			if (!jotnarFaction.isDead) {
 				var jotnarRelation = currentPlayer.player.getAlignment(jotnarFaction.faction, false);
 				var jotnarCommon = currentPlayer.player.getFactionRelation(jotnarFaction.faction).common;
@@ -164,13 +180,13 @@ function regularUpdate (dt : Float) {
 			}
 		}
 
-		// we'll limit our objective updates to every 2 seconds instead of every 0.5 seconds to ease up on the computing
-		if (state.time % 2 < 0.1) {
-			for (currentPlayer in players) {
+		// we'll limit our objective updates to every second instead of every 0.5 seconds to ease up on the computing
+		if (state.time % 1 < 0.1) {
+			@sync for (currentPlayer in players) {
 				if (!currentPlayer.player.isAI && !currentPlayer.isDead) {
 					// determine whether we should show this player the overview set of objectives
 					// and while we're here, update the relationship progress bars
-					var showOverview = currentPlayer.hiring == null;
+					var showOverview = !currentPlayer.isHiring && !currentPlayer.isTargeting;
 					currentPlayer.player.objectives.setVisible("victoryExplanation", showOverview);
 					for (neutralFaction in neutrals) {
 						if (!neutralFaction.isDead) {
@@ -180,7 +196,7 @@ function regularUpdate (dt : Float) {
 					}
 
 					// determine whether we should show this player the hiring set of objectives
-					var showHire = currentPlayer.hiring == null;
+					// and while we're here, update the hire cooldown progress bar
 					var anyWilling = false;
 					for (neutralFaction in neutrals) {
 						var thisWilling = false;
@@ -191,22 +207,29 @@ function regularUpdate (dt : Float) {
 								anyWilling = true;
 							}
 						}
-						currentPlayer.player.objectives.setVisible("hire" + neutralFaction.name, showHire && thisWilling);
+						currentPlayer.player.objectives.setVisible("hire" + neutralFaction.name, currentPlayer.isHiring && thisWilling);
 						// if the player can't afford to hire this faction, we'll still show the option but gray it out
-						var hireStatus = currentPlayer.player.getResource(neutralFaction.resource) >= neutralFaction.price ? OStatus.Empty : OStatus.Missed;
-						currentPlayer.player.objectives.setStatus("hire" + neutralFaction.name, hireStatus);
+						var canAfford = currentPlayer.player.getResource(neutralFaction.resource) >= neutralFaction.price;
+						currentPlayer.player.objectives.setStatus("hire" + neutralFaction.name, canAfford ? OStatus.Empty : OStatus.Missed);
 					}
-					// we only want to show the explanation if any of the factions are willing to be hired
-					currentPlayer.player.objectives.setVisible("hireExplanation", showHire && anyWilling);
+					currentPlayer.player.objectives.setVisible("cancelHire", currentPlayer.isHiring && anyWilling);
+
+					// we want to show the player their hiring cooldown
+					currentPlayer.player.objectives.setCurrentVal("hireExplanation", toInt(state.time - currentPlayer.lastHireTime));
+					// we only want to show the explanation and let them get further into hiring
+					// if we're on the main menu and any of the factions are willing to be hired
+					currentPlayer.player.objectives.setVisible("hireExplanation", showOverview && anyWilling);
+					// if the player's hiring cooldown has not yet completed, we'll still show the explanation but gray it out
+					var offCooldown = toInt(state.time - currentPlayer.lastHireTime) >= hireCooldown;
+					currentPlayer.player.objectives.setStatus("hireExplanation", offCooldown ? OStatus.Empty : OStatus.Missed);
 
 					// determine whether we should show this player the targeting set of objectives
-					var showTarget = currentPlayer.hiring != null;
 					for (otherPlayer in players) {
-						currentPlayer.player.objectives.setVisible("selectTarget", showTarget);
-						if (otherPlayer.player != currentPlayer.player && !otherPlayer.isDead) {
-							currentPlayer.player.objectives.setVisible("target" + otherPlayer.uid, showTarget);
+						currentPlayer.player.objectives.setVisible("selectTarget", currentPlayer.isTargeting);
+						if (otherPlayer.uid != currentPlayer.uid) {
+							currentPlayer.player.objectives.setVisible("target" + otherPlayer.uid, currentPlayer.isTargeting && !otherPlayer.isDead);
 						}
-						currentPlayer.player.objectives.setVisible("cancelTarget", showTarget);
+						currentPlayer.player.objectives.setVisible("cancelTarget", currentPlayer.isTargeting);
 					}
 				}
 			}
@@ -215,61 +238,122 @@ function regularUpdate (dt : Float) {
 }
 
 
-function invokeHireJotnar () { var args : Array<Dynamic> = []; args.push(me()); args.push("Jotnar"); invokeHost("setHiring", args); }
-function invokeHireKobolds () { var args : Array<Dynamic> = []; args.push(me()); args.push("Kobolds"); invokeHost("setHiring", args); }
-function invokeHireMyrkalfar () { var args : Array<Dynamic> = []; args.push(me()); args.push("Myrkalfar"); invokeHost("setHiring", args); }
-function invokeHireNull () { var args : Array<Dynamic> = []; args.push(me()); args.push(null); invokeHost("setHiring", args); }
-function invokeAttackPlayer0 () { var args : Array<Dynamic> = []; args.push(me()); args.push(0); invokeHost("hireAttack", args); }
-function invokeAttackPlayer1 () { var args : Array<Dynamic> = []; args.push(me()); args.push(1); invokeHost("hireAttack", args); }
-function invokeAttackPlayer2 () { var args : Array<Dynamic> = []; args.push(me()); args.push(2); invokeHost("hireAttack", args); }
-function invokeAttackPlayer3 () { var args : Array<Dynamic> = []; args.push(me()); args.push(3); invokeHost("hireAttack", args); }
-function invokeAttackPlayer4 () { var args : Array<Dynamic> = []; args.push(me()); args.push(4); invokeHost("hireAttack", args); }
-function invokeAttackPlayer5 () { var args : Array<Dynamic> = []; args.push(me()); args.push(5); invokeHost("hireAttack", args); }
-function invokeAttackPlayer6 () { var args : Array<Dynamic> = []; args.push(me()); args.push(6); invokeHost("hireAttack", args); }
-function invokeAttackPlayer7 () { var args : Array<Dynamic> = []; args.push(me()); args.push(7); invokeHost("hireAttack", args); }
+function invokeHiring () { var args : Array<Dynamic> = []; args.push(me()); invokeHost("startHiring", args); }
+function invokeHireJotnar () { var args : Array<Dynamic> = []; args.push(me()); args.push("Jotnar"); invokeHost("hireFaction", args); }
+function invokeHireKobolds () { var args : Array<Dynamic> = []; args.push(me()); args.push("Kobolds"); invokeHost("hireFaction", args); }
+function invokeHireMyrkalfar () { var args : Array<Dynamic> = []; args.push(me()); args.push("Myrkalfar"); invokeHost("hireFaction", args); }
+function invokeAttackPlayer0 () { var args : Array<Dynamic> = []; args.push(me()); args.push(0); invokeHost("orderAttack", args); }
+function invokeAttackPlayer1 () { var args : Array<Dynamic> = []; args.push(me()); args.push(1); invokeHost("orderAttack", args); }
+function invokeAttackPlayer2 () { var args : Array<Dynamic> = []; args.push(me()); args.push(2); invokeHost("orderAttack", args); }
+function invokeAttackPlayer3 () { var args : Array<Dynamic> = []; args.push(me()); args.push(3); invokeHost("orderAttack", args); }
+function invokeAttackPlayer4 () { var args : Array<Dynamic> = []; args.push(me()); args.push(4); invokeHost("orderAttack", args); }
+function invokeAttackPlayer5 () { var args : Array<Dynamic> = []; args.push(me()); args.push(5); invokeHost("orderAttack", args); }
+function invokeAttackPlayer6 () { var args : Array<Dynamic> = []; args.push(me()); args.push(6); invokeHost("orderAttack", args); }
+function invokeAttackPlayer7 () { var args : Array<Dynamic> = []; args.push(me()); args.push(7); invokeHost("orderAttack", args); }
+function invokeCancel () { var args : Array<Dynamic> = []; args.push(me()); args.push(null); invokeHost("hireFaction", args); }
 
 
-function setHiring (playerRef : Player, faction : String) {
-	var hiredFaction = null;
-	for (neutralFaction in neutrals) {
-		if (neutralFaction.name == faction) {
-			hiredFaction = neutralFaction;
-		}
-	}
+function startHiring (playerRef : Player) {
 	for (currentPlayer in players) {
 		if (currentPlayer.player == playerRef) {
-			currentPlayer.hiring = hiredFaction == null ? null : hiredFaction.faction;
+			currentPlayer.isHiring = true;
+			break;
 		}
 	}
 }
 
 
-function hireAttack (playerRef : Player, targetUid : Int) {
+function hireFaction (playerRef : Player, factionName : String) {
 	var hiredFaction = null;
-	var hiredCount = null;
+	for (neutralFaction in neutrals) {
+		if (neutralFaction.name == factionName) {
+			hiredFaction = neutralFaction;
+			break;
+		}
+	}
 	for (currentPlayer in players) {
 		if (currentPlayer.player == playerRef) {
-			for (neutralFaction in neutrals) {
-				if (neutralFaction.faction == currentPlayer.hiring) {
-					hiredFaction = neutralFaction;
-				}
+			currentPlayer.isHiring = false;
+			if (hiredFaction == null) {
+				currentPlayer.isTargeting = false;
+				currentPlayer.hiredFaction = null;
 			}
-			if (hiredFaction != null) {
+			else {
+				currentPlayer.isTargeting = true;
+				currentPlayer.hiredFaction = hiredFaction.faction;
+			}
+			break;
+		}
+	}
+}
+
+
+function orderAttack (playerRef : Player, targetUid : Int) {
+	var hiringPlayer = null;
+	var targetPlayer = null;
+	var hiredFaction = null;
+	var hiredUnits = null;
+	var attackSent = null;
+	for (currentPlayer in players) {
+		if (currentPlayer.player == playerRef) {
+			hiringPlayer = currentPlayer;
+		}
+		if (currentPlayer.uid == targetUid) {
+			targetPlayer = currentPlayer;
+		}
+	}
+	for (neutralFaction in neutrals) {
+		if (neutralFaction.faction == hiringPlayer.hiredFaction) {
+			hiredFaction = neutralFaction;
+			break;
+		}
+	}
+	if (hiredFaction != null) {
+		var factionRelation = hiringPlayer.player.getAlignment(hiredFaction.faction, false);
+		// we'll send more units based on how far beyond the minimum relationship threshold the hiring player is with the hired faction
+		var bonusGroups = toInt((factionRelation - relationToHire) / relationPerIncrease);
+		// we'll spawn the neutral faction units in their home zone and attempt to path them to the target player
+		hiredUnits = hiredFaction.homeZone.addUnit(hiredFaction.unit, hiredFaction.count * (1 + bonusGroups), null, false);
+		attackSent = launchAttackPlayer(hiredUnits, targetPlayer.player);
+	}
+	for (currentPlayer in players) {
+		if (currentPlayer.uid == hiringPlayer.uid) {
+			currentPlayer.isTargeting = false;
+			currentPlayer.hiredFaction = null;
+			if (attackSent == true) {
+				// if the attack worked, we'll take the payment and put the hiring player on cooldown
 				currentPlayer.player.addResource(hiredFaction.resource, -hiredFaction.price);
-				var factionRelation = currentPlayer.player.getAlignment(hiredFaction.faction, false);
-				var bonusGroups = toInt((factionRelation - relationToHire) / relationPerIncrease);
-				hiredCount = hiredFaction.count * (1 + bonusGroups);
-				// TODO: apply per-player cooldown so they can't spam hire?
+				currentPlayer.lastHireTime = state.time;
+				// we'll also give the hiring player a notification to let them track their attack
+				var args : Array<Dynamic> = [];
+				args.push("You've sent " + hiredUnits.length + " [" + hiredFaction.formatName + "]s to attack " + targetPlayer.player.name + "!");
+				args.push(hiredUnits[0]);
+				invoke(currentPlayer.player, "displayNotification", args);
+				// and we'll the notify target player that they're being attacked
+				args = [];
+				args.push("Someone has hired the [" + hiredFaction.formatName + "]s to attack you!");
+				args.push(hiredUnits[0]);
+				invoke(targetPlayer.player, "displayNotification", args);
 			}
-			currentPlayer.hiring = null;
+			else if (attackSent == false) {
+				// if the units failed to find a path to the target player, we'll kill them and notify the hiring player
+				for (hiredUnit in hiredUnits) {
+					hiredUnit.die(true, false);
+				}
+				var args : Array<Dynamic> = [];
+				args.push("Your hired [" + hiredFaction.formatName + "]s failed to find a route to their target, so no attack has been sent.");
+				args.push(null);
+				invoke(currentPlayer.player, "displayNotification", args);
+			}
+			// if attackSent is neither true nor false, then we had no faction and thus didn't attempt an attack at all, so no further cleanup is needed
 			break;
 		}
 	}
-	for (otherPlayer in players) {
-		if (otherPlayer.uid == targetUid) {
-			// TODO: send attack
-			debug("sending " + hiredCount + " " + hiredFaction.name + " to attack " + otherPlayer.player.name);
-			break;
-		}
-	}
+}
+
+
+function displayNotification (message : String, target : Entity) {
+	// genericNotify doesn't always work when the player reference is not me(),
+	// so we're invoking this function on each player's client as needed
+	me().genericNotify(message, target);
 }
