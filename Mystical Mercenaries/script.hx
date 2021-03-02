@@ -1,5 +1,3 @@
-// TODO: HOW DO I STOP KOBOLDS FROM "COLONIZING" EVERY TILE THEY RUN THROUGH
-
 var homeZones = [225, 101, 97, 215, 179, 147, 242, 124];
 var players : Array<{
 	uid : Int,
@@ -29,29 +27,33 @@ var neutrals : Array<{
 	homeZone : Zone,
 	isDead: Bool,
 	price : Int,
-	resource : ResourceKind
+	resource : ResourceKind,
+	notes : String
 }> = [
 	{
 		name: "Jotnar", formatName: "Giant", faction: getFaction("Giant"),
 		unit: Unit.Giant, count: 1, homeZone: getZone(170),
-		isDead: false, price: 3, resource: Resource.Food // TODO: 3 -> 300
+		isDead: false, price: 250, resource: Resource.Food,
+		notes: "Slow but powerful, the [Giant]s are the strongest warriors available for hire."
 	},
 	{
 		name: "Kobolds", formatName: "Kobold", faction: getFaction("Kobold"),
-		unit: Unit.Kobold, count: 4, homeZone: getZone(153),
-		isDead: false, price: 3, resource: Resource.Wood // TODO: 3 -> 300
+		unit: Unit.Kobold, count: 3, homeZone: getZone(153),
+		isDead: false, price: 250, resource: Resource.Wood,
+		notes: "Considered pests by many, the [Kobold]s will leave a trail of their kind along their path."
 	},
 	{
 		name: "Myrkalfar", formatName: "Myrkalfar", faction: getFaction("Myrkalfar"),
 		unit: Unit.Myrkalfar, count: 2, homeZone: getZone(146),
-		isDead: false, price: 3, resource: Resource.Money // TODO: 3 -> 300
+		isDead: false, price: 250, resource: Resource.Money,
+		notes: "The devious [Myrkalfar]s will drain your enemy's resources for the duration of their attack."
 	}
 ];
 var relationMultiplier = 10;
-var jotnarRelationCap = 9.5; // TODO: 9.9
-var relationToHire = 0.0; // TODO: 7.5
+var relationToHire = 7.5;
 var relationPerIncrease = 1.0;
-var hireCooldown = 10; // TODO: 120
+var jotnarRelationCap = 9.9;
+var hireCooldown = 120;
 
 
 function saveState () {
@@ -77,8 +79,6 @@ function onFirstLaunch () {
 	state.removeVictory(VictoryKind.VYggdrasil);
 	if (isHost()) {
 		@sync for (currentPlayer in players) {
-			currentPlayer.player.addResource(Resource.Lore, 180, false); // TODO: remove
-			currentPlayer.player.discoverAll(); // TODO: remove, and change cdb back to 1/1/2 instead of 10/10/20, and remove red extra starting buildings
 			// we'll reveal all of the neutrals at the start for quicker trading
 			for (neutralFaction in neutrals) {
 				currentPlayer.player.discoverZone(neutralFaction.homeZone);
@@ -94,14 +94,14 @@ function onFirstLaunch () {
 				// but we won't show them until the right conditions are met
 				currentPlayer.player.objectives.add(
 					"hireExplanation",
-					"For the right price, any neutral faction that considers you a friend (75%) will attack your enemies! The better your relationship, the more units they'll send (every 10%)! They do, however, all share a cooldown.",
+					"For the right price, any neutral faction that considers you a friend (" + relationToHire * relationMultiplier + "%) will attack your enemies! The better your relationship, the more units they'll send (every " + relationPerIncrease * relationMultiplier + "%)! They do, however, all share a cooldown.",
 					{ visible: false, showProgressBar: true, goalVal: hireCooldown },
 					{ name: "Hire a faction", action: "invokeHiring" }
 				);
 				for (neutralFaction in neutrals) {
 					currentPlayer.player.objectives.add(
 						"hire" + neutralFaction.name,
-						"You can hire a group of [" + neutralFaction.formatName + "]s to attack an enemy clan for " + neutralFaction.price + " [" + neutralFaction.resource + "]!",
+						"You can hire a group of [" + neutralFaction.formatName + "]s to attack an enemy clan for " + neutralFaction.price + " [" + neutralFaction.resource + "]! " + neutralFaction.notes,
 						{ visible: false },
 						{ name: "Hire", action: "invokeHire" + neutralFaction.name }
 					);
