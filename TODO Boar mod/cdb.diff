@@ -1,0 +1,13 @@
+{
+	"cst": {
+		"FriendshipRatioGiant": {
+			"value": 10
+		},
+		"FriendshipRatioKobold": {
+			"value": 10
+		},
+		"FriendshipRatioMyrkalfar": {
+			"value": 20
+		}
+	}
+}
