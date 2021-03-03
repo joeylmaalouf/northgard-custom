@@ -94,7 +94,7 @@ function onFirstLaunch () {
 				currentPlayer.player.objectives.add("victoryExplanation", "These lands are vast and mysterious, and the factions that live here are unlike any beings known to your clan! Maybe you can befriend them while you attempt to gain victory by researching the ancient lore found here?");
 				// we'll want to show each player their own relationship progress with the neutrals
 				for (neutralFaction in neutrals) {
-					currentPlayer.player.objectives.add("progress" + neutralFaction.name, "Your relationship with the [" + hiredFaction.formatName + "]s" + hiredFaction.relationNotes + ":", { visible: true, showProgressBar: true, goalVal: 100 });
+					currentPlayer.player.objectives.add("progress" + neutralFaction.name, "Your relationship with the [" + neutralFaction.formatName + "]s" + neutralFaction.relationNotes + ":", { visible: true, showProgressBar: true, goalVal: 100 });
 				}
 				// we'll set up objectives for each (human) player to be able to select a neutral faction to hire and a fellow player to target,
 				// but we won't show them until the right conditions are met
