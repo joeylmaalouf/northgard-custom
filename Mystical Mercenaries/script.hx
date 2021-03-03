@@ -1,3 +1,9 @@
+var relationMultiplier = 10;
+var relationToHire = 7.5;
+var relationPerIncrease = 1.0;
+var jotnarRelationCap = 9.9;
+var hireCooldown = 120;
+
 var homeZones = [225, 101, 97, 215, 179, 147, 242, 124];
 var players : Array<{
 	uid : Int,
@@ -18,6 +24,7 @@ var players : Array<{
 	hiredFaction: null,
 	lastHireTime: 0.0
 }];
+
 var neutrals : Array<{
 	name : String,
 	formatName : String,
@@ -28,32 +35,31 @@ var neutrals : Array<{
 	isDead: Bool,
 	price : Int,
 	resource : ResourceKind,
-	notes : String
+	relationNotes : String,
+	hireNotes : String
 }> = [
 	{
 		name: "Jotnar", formatName: "Giant", faction: getFaction("Giant"),
 		unit: Unit.Giant, count: 1, homeZone: getZone(170),
 		isDead: false, price: 250, resource: Resource.Food,
-		notes: "Slow but powerful, the [Giant]s are the strongest warriors available for hire."
+		relationNotes: " (to prevent them from allying with just one faction, this maxes out at " + jotnarRelationCap * relationMultiplier + "%, not 100%)",
+		hireNotes: "Slow but powerful, the [Giant]s are the strongest warriors available for hire."
 	},
 	{
 		name: "Kobolds", formatName: "Kobold", faction: getFaction("Kobold"),
 		unit: Unit.Kobold, count: 3, homeZone: getZone(153),
 		isDead: false, price: 250, resource: Resource.Wood,
-		notes: "Considered pests by many, the [Kobold]s will leave a trail of their kind along their path."
+		relationNotes: "",
+		hireNotes: "Considered pests by many, the [Kobold]s will leave a trail of their kind along their path."
 	},
 	{
 		name: "Myrkalfar", formatName: "Myrkalfar", faction: getFaction("Myrkalfar"),
 		unit: Unit.Myrkalfar, count: 2, homeZone: getZone(146),
 		isDead: false, price: 250, resource: Resource.Money,
-		notes: "The devious [Myrkalfar]s will drain your enemy's resources for the duration of their attack."
+		relationNotes: "",
+		hireNotes: "The devious [Myrkalfar]s will drain your enemy's resources for the duration of their attack."
 	}
 ];
-var relationMultiplier = 10;
-var relationToHire = 7.5;
-var relationPerIncrease = 1.0;
-var jotnarRelationCap = 9.9;
-var hireCooldown = 120;
 
 
 function saveState () {
@@ -87,9 +93,9 @@ function onFirstLaunch () {
 			if (!currentPlayer.player.isAI) {
 				currentPlayer.player.objectives.add("victoryExplanation", "These lands are vast and mysterious, and the factions that live here are unlike any beings known to your clan! Maybe you can befriend them while you attempt to gain victory by researching the ancient lore found here?");
 				// we'll want to show each player their own relationship progress with the neutrals
-				currentPlayer.player.objectives.add("progressJotnar", "Your relationship with the [Giant]s (to prevent them from allying with just one faction, this maxes out at " + jotnarRelationCap * relationMultiplier + "%, not 100%):", { visible: true, showProgressBar: true, goalVal: 100 });
-				currentPlayer.player.objectives.add("progressKobolds", "Your relationship with the [Kobold]s:", { visible: true, showProgressBar: true, goalVal: 100 });
-				currentPlayer.player.objectives.add("progressMyrkalfar", "Your relationship with the [Myrkalfar]s:", { visible: true, showProgressBar: true, goalVal: 100 });
+				for (neutralFaction in neutrals) {
+					currentPlayer.player.objectives.add("progress" + neutralFaction.name, "Your relationship with the [" + hiredFaction.formatName + "]s" + hiredFaction.relationNotes + ":", { visible: true, showProgressBar: true, goalVal: 100 });
+				}
 				// we'll set up objectives for each (human) player to be able to select a neutral faction to hire and a fellow player to target,
 				// but we won't show them until the right conditions are met
 				currentPlayer.player.objectives.add(
@@ -101,7 +107,7 @@ function onFirstLaunch () {
 				for (neutralFaction in neutrals) {
 					currentPlayer.player.objectives.add(
 						"hire" + neutralFaction.name,
-						"You can hire a group of [" + neutralFaction.formatName + "]s to attack an enemy clan for " + neutralFaction.price + " [" + neutralFaction.resource + "]! " + neutralFaction.notes,
+						"You can hire a group of [" + neutralFaction.formatName + "]s to attack an enemy clan for " + neutralFaction.price + " [" + neutralFaction.resource + "]! " + neutralFaction.hireNotes,
 						{ visible: false },
 						{ name: "Hire", action: "invokeHire" + neutralFaction.name }
 					);
@@ -215,12 +221,15 @@ function regularUpdate (dt : Float) {
 					currentPlayer.player.objectives.setVisible("cancelHire", currentPlayer.isHiring && anyWilling);
 
 					// we want to show the player their hiring cooldown
-					currentPlayer.player.objectives.setCurrentVal("hireExplanation", toInt(state.time - currentPlayer.lastHireTime));
+					var timeSinceHire = toInt(state.time - currentPlayer.lastHireTime);
+					if (timeSinceHire <= hireCooldown) {
+						currentPlayer.player.objectives.setCurrentVal("hireExplanation", timeSinceHire);
+					}
 					// we only want to show the explanation and let them get further into hiring
 					// if we're on the main menu and any of the factions are willing to be hired
 					currentPlayer.player.objectives.setVisible("hireExplanation", showOverview && anyWilling);
 					// if the player's hiring cooldown has not yet completed, we'll still show the explanation but gray it out
-					var offCooldown = toInt(state.time - currentPlayer.lastHireTime) >= hireCooldown;
+					var offCooldown = timeSinceHire >= hireCooldown;
 					currentPlayer.player.objectives.setStatus("hireExplanation", offCooldown ? OStatus.Empty : OStatus.Missed);
 
 					// determine whether we should show this player the targeting set of objectives
@@ -238,6 +247,7 @@ function regularUpdate (dt : Float) {
 }
 
 
+// oh how I wish we could pass args to the objective button callbacks
 function invokeHiring () { var args : Array<Dynamic> = []; args.push(me()); invokeHost("startHiring", args); }
 function invokeHireJotnar () { var args : Array<Dynamic> = []; args.push(me()); args.push("Jotnar"); invokeHost("hireFaction", args); }
 function invokeHireKobolds () { var args : Array<Dynamic> = []; args.push(me()); args.push("Kobolds"); invokeHost("hireFaction", args); }
