@@ -46,6 +46,16 @@ var waveAttackTicker = 0;
 var waveAttackDelay = 4;
 var wavesOver = false;
 var inCutscene = false;
+var cutscenePositions = [
+	[469, 440],
+	[459, 450],
+	[480, 446],
+	[467, 467],
+	[475, 469],
+	[486, 463],
+	[457, 456],
+	[488, 454]
+];
 var helheimGate = null;
 
 
@@ -251,12 +261,36 @@ function regularUpdate (dt : Float) {
 			}
 		}
 		else {
-			// if we have no foes and all of the non-AI warchiefs here, trigger the victory scene!
-			var foes = [for (unit in centerZone.units) if (unit.isFoe) unit];
-			var warchiefs = [for (unit in centerZone.units) if (unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02) unit];
-			var playerWarchiefs = [for (unit in warchiefs) if (!unit.owner.isAI) unit];
+			// if we have no foes (Kaija counts, so we have to check ownership too) and all of the non-AI warchiefs here,
+			// we can get all of the warchiefs into position and trigger the victory scene!
+			var foes = [for (unit in centerZone.units) if (unit.isFoe && unit.owner == null) unit];
+			var playerWarchiefs = [for (unit in centerZone.units) if ((unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02) && !unit.owner.isAI) unit];
 			if (foes.length == 0 && playerWarchiefs.length >= humanPlayers.length) {
-				invokeAll("playFinishCutscene", []);
+				// any warchiefs already in the center zone will move into position, while the rest will be summoned
+				var warchiefs = [];
+				var playerIndex = 0;
+				for (homeZone in homeZones) {
+					var warchief;
+					var foundWarchief = false;
+					for (unit in centerZone.units) {
+						if ((unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02) && unit.owner == homeZone.owner) {
+							warchief = unit;
+							foundWarchief = true;
+							break;
+						}
+					}
+					if (!foundWarchief) {
+						warchief = summonWarchief(homeZone.owner, centerZone, cutscenePositions[playerIndex][0], cutscenePositions[playerIndex][1]);
+					}
+					warchief.setControlable(false);
+					warchief.canPatrol = false;
+					warchief.moveUnit(cutscenePositions[playerIndex][0], cutscenePositions[playerIndex][1]);
+					warchiefs.push(warchief);
+					++playerIndex;
+				}
+				var args : Array<Dynamic> = [];
+				args.push(warchiefs);
+				invokeAll("playFinishCutscene", args);
 			}
 		}
 
@@ -296,38 +330,22 @@ function playInspireCutscene (warchief : Unit) {
 }
 
 
-function playFinishCutscene () {
+function playFinishCutscene (warchiefs : Array<Unit>) {
 	inCutscene = true;
 	setPause(true);
 	moveCamera({x: helheimGate.x, y: helheimGate.y});
-	var centerPositions = [
-		[469, 440],
-		[459, 450],
-		[480, 446],
-		[467, 467],
-		[475, 469],
-		[486, 463],
-		[457, 456],
-		[488, 454]
-	];
-	var playerIndex = 0;
-	var warchiefs = [];
-	for (homeZone in homeZones) {
-		var warchief = summonWarchief(homeZone.owner, centerZone, centerPositions[playerIndex][0], centerPositions[playerIndex][1]);
-		warchief.setControlable(false);
-		warchief.canPatrol = false;
-		warchief.orientToTargetSmooth(helheimGate, 30);
-		warchiefs.push(warchief);
-		++playerIndex;
+	wait(1);
+	for (i in 0 ... 3) { // hip, hip, hooray!
+		wait(0.5);
+		@async for (warchief in warchiefs) {
+			warchief.orientToTargetSmooth(helheimGate, 30);
+			playAnim(warchief, "victory", false);
+		};
+		wait(0.5);
 	}
-	wait(1);
-	@async for (warchief in warchiefs) {
-		playAnim(warchief, "victory", false);
-	};
-	wait(2);
+	wait(1.5);
 	shakeCamera();
-	helheimGate.setActive(false);
-	wait(1);
+	wait(2);
 	setPause(false);
 	inCutscene = false;
 	player.customVictory("Congratulations! The gates have been sealed for good!", "If you can see this message, something is wrong with the team setup!");
