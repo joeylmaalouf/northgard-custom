@@ -47,7 +47,7 @@ function onFirstLaunch () {
 		@sync for (currentPlayer in state.players) {
 			currentPlayer.objectives.add("racevictory", "Your goal here is very simple: be the first to colonize your entire lane!");
 			currentPlayer.objectives.add("matchingvision", "If you want to see how well your competitors are doing, you'll need to make progress yourself! Past the starting area, you'll automatically be able to see as much of the other lanes as you've colonized in yours, plus a little bit beyond.");
-			currentPlayer.objectives.add("foerespawn", "To add a little excitement, players can slow down those ahead of them; the first time you colonize each foe zone, all of the foes in that corresponding zone on each of the other islands will respawn, though only at half strength!");
+			currentPlayer.objectives.add("foerespawn", "To add a little excitement, players can slow down those ahead of them; the first time you colonize each zone, the foes in that corresponding zone on each of the other islands will respawn (though only at half strength)!");
 		}
 		@sync for (lane in lanes) {
 			var laneOwner = getZone(lane[0]).owner;
@@ -120,10 +120,13 @@ function regularUpdate (dt : Float) {
 									laneOwner.discoverZone(getZone(otherLane[zoneIndex + 1]));
 								}
 								if (zoneIndex >= foeOffset) {
-									var zoneFoes = foes[zoneIndex - foeOffset];
-									for (foe in zoneFoes) {
-										foe.z = otherLane[zoneIndex];
-										foe.nb = max(1, toInt(foe.nb / 2));
+									var zoneFoes = [];
+									for (foe in foes[zoneIndex - foeOffset]) {
+										zoneFoes.push({
+											z: otherLane[zoneIndex],
+											u: foe.u,
+											nb: max(1, toInt(foe.nb / 2))
+										});
 									}
 									killFoes(zoneFoes);
 									addFoes(zoneFoes);
