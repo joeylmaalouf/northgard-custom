@@ -65,9 +65,13 @@ function onFirstLaunch () {
 					// and we'll only reveal the zones to the player who owns the lane (to lessen the lag from seeing such a big map)
 					zone.maxBuildings = 0;
 					laneOwner.discoverZone(zone);
-					var zoneFoes = foes[zoneIndex - foeOffset];
-					for (foe in zoneFoes) {
-						foe.z = lane[zoneIndex];
+					var zoneFoes = [];
+					for (foe in foes[zoneIndex - foeOffset]) {
+						zoneFoes.push({
+							z: lane[zoneIndex],
+							u: foe.u,
+							nb: foe.nb
+						});
 					}
 					addFoes(zoneFoes);
 				}
