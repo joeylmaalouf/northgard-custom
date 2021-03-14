@@ -227,6 +227,7 @@ function sendFrom (currentPlayer : Player, zoneId : Int) {
 
 // I wish we could use actual drakkar here, but they need to be given very specific src/dst zones or they won't appear at all and no units will spawn,
 // and with so many possible src/dst combinations of every town hall and every mainland beach, that's not feasible here, so we'll just teleport them over
+// we could just figure out one sea zone src for each beach zone dst, but we'd still have the issue of drakkar spawning new units instead of moving existing ones
 function sendUnits (currentPlayer : Player, srcZoneId : Int, dstZoneId : Int) {
 	var drakkarIndices = [];
 	var zoneUnits = getZone(srcZoneId).units;
