@@ -1,7 +1,8 @@
 var centerZone = getZone(164);
 var mainlandBeachZones = [for (i in [118, 115, 104, 95, 103, 110, 123, 139, 154, 175, 193, 210, 216, 233, 221, 227, 222, 211, 195, 176, 156, 142]) getZone(i)];
 var homeZones = [for (i in [70, 30, 63, 155, 250, 304, 267, 174]) getZone(i)];
-var landingPoints = [ [], [], [], [], [], [], [], [] ];
+var landingPoints = [[], [], [], [], [], [], [], []];
+var isSpecialColonizing = [false, false, false, false, false, false, false, false];
 var maxLandingPoints = 2;
 var maxUnitsPerDrakkar = 12;
 var specialColonizeCost = 200;
@@ -33,7 +34,6 @@ function onFirstLaunch () {
 			if (!currentPlayer.isAI) {
 				currentPlayer.objectives.add("summary", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland!");
 				currentPlayer.objectives.add("details", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you might have to click the button multiple times for larger groups!");
-				// we loop twice because we want to show all of the send/retrieve buttons above all of the colonize buttons
 				for (beach in mainlandBeachZones) {
 					var transportBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal && building.kind != Building.Stones && building.kind != Building.IronDeposit) "[" + building.kind + "]"].join(", ");
 					currentPlayer.objectives.add(
@@ -49,11 +49,28 @@ function onFirstLaunch () {
 						{ name: "Retrieve", action: "invokeSendFrom" + beach.id }
 					);
 				}
+				currentPlayer.objectives.add(
+					"showColonizable",
+					"You can view a list of the beaches available to be colonized here:",
+					{ visible: false },
+					{ name: "Show Me", action: "invokeSpecialColonizing" }
+				);
+				currentPlayer.objectives.add(
+					"cancelShowColonizable",
+					"You can return to the main menu without colonizing anything:",
+					{ visible: false },
+					{ name: "Cancel", action: "invokeCancelColonizing" }
+				);
+				currentPlayer.objectives.add(
+					"specialColonizeInfo",
+					"Or you can pay " + specialColonizeCost + " [Money]s to colonize any available beach as a landing point:",
+					{ visible: false }
+				);
 				for (beach in mainlandBeachZones) {
 					var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
 					currentPlayer.objectives.add(
 						"colonize" + beach.id,
-						"You can pay " + specialColonizeCost + " [Money] to colonize the beach with: " + colonizeBuildingList,
+						"Colonize the beach with: " + colonizeBuildingList,
 						{ visible: false },
 						{ name: "Colonize", action: "invokeSpecialColonize" + beach.id }
 					);
@@ -88,25 +105,51 @@ function regularUpdate (dt : Float) {
 			@sync for (playerIndex in 0 ... homeZones.length) {
 				var currentPlayer = homeZones[playerIndex].owner;
 				if (currentPlayer != null && !currentPlayer.isAI) {
+					currentPlayer.objectives.setVisible("summary", !isSpecialColonizing[playerIndex]);
+					currentPlayer.objectives.setVisible("details", !isSpecialColonizing[playerIndex]);
 					// we want to process the landing points first because if we lose any of them, we want the colonize options logic below to pick them up
 					for (landingPoint in landingPoints[playerIndex]) {
 						if (getZone(landingPoint).owner != currentPlayer) {
 							landingPoints[playerIndex].remove(landingPoint);
+							currentPlayer.objectives.setStatus("colonize" + landingPoint, OStatus.Empty);
 							currentPlayer.objectives.setVisible("sendTo" + landingPoint, false);
 							currentPlayer.objectives.setVisible("sendFrom" + landingPoint, false);
 						}
 						else {
-							currentPlayer.objectives.setVisible("sendTo" + landingPoint, true);
-							currentPlayer.objectives.setVisible("sendFrom" + landingPoint, true);
+							currentPlayer.objectives.setVisible("sendTo" + landingPoint, !isSpecialColonizing[playerIndex]);
+							currentPlayer.objectives.setVisible("sendFrom" + landingPoint, !isSpecialColonizing[playerIndex]);
 						}
 					}
+					// if the player hasn't maxed out their landing points yet and they've discovered any of the potential ones, give them the option to see the list
+					var hasDiscoveredAny = false;
 					for (beach in mainlandBeachZones) {
-						currentPlayer.objectives.setVisible("colonize" + beach.id,
+						if (currentPlayer.hasDiscovered(beach)) {
+							hasDiscoveredAny = true;
+							break;
+						}
+					}
+					var canSpecialColonize = (
+						!isSpecialColonizing[playerIndex]
+						&& landingPoints[playerIndex].length < maxLandingPoints
+						&& hasDiscoveredAny
+					);
+					currentPlayer.objectives.setVisible("showColonizable", canSpecialColonize);
+					currentPlayer.objectives.setVisible("cancelShowColonizable", isSpecialColonizing[playerIndex]);
+					currentPlayer.objectives.setVisible("specialColonizeInfo", isSpecialColonizing[playerIndex]);
+					// we'll show all of the beaches they've discovered, but gray out any they can't colonize
+					for (beach in mainlandBeachZones) {
+						var isSpecialColonizable = (
 							landingPoints[playerIndex].length < maxLandingPoints
-							&& currentPlayer.hasDiscovered(beach)
+							&& currentPlayer.getResource(Resource.Money) >= specialColonizeCost
 							&& beach.owner == null
 							&& beach.colonizeBy == null
+							&& [for (unit in beach.units) if (!unit.isOwner(currentPlayer) && unit.kind != Unit.Sheep) unit].length == 0
 						);
+						// the Done status plays its animation every time it's set, so if it's been set we don't want to update it anymore unless we lose the zone (handled further above)
+						if (currentPlayer.objectives.getStatus("colonize" + beach.id) != OStatus.Done) {
+							currentPlayer.objectives.setStatus("colonize" + beach.id, isSpecialColonizable ? OStatus.Empty : OStatus.Missed);
+						}
+						currentPlayer.objectives.setVisible("colonize" + beach.id, isSpecialColonizing[playerIndex] && currentPlayer.hasDiscovered(beach));
 					}
 				}
 			}
@@ -125,6 +168,8 @@ function getPlayerIndex (currentPlayer : Player) {
 }
 
 
+function invokeSpecialColonizing () { var args : Array<Dynamic> = []; args.push(me()); args.push(true); invokeHost("setColonizing", args); }
+function invokeCancelColonizing () { var args : Array<Dynamic> = []; args.push(me()); args.push(false); invokeHost("setColonizing", args); }
 // these need to match mainlandBeachZones...
 // I DO NOT LIKE THIS, SHIRO GAMES. LET ME PASS ARGS TO THE OBJECTIVE BUTTON, OR AT LEAST LET ME DYNAMICALLY CREATE THESE CALLBACK FUNCTIONS
 function invokeSpecialColonize118 () { var args : Array<Dynamic> = []; args.push(me()); args.push(118); invokeHost("specialColonize", args); }
@@ -195,21 +240,20 @@ function invokeSendFrom156 () { var args : Array<Dynamic> = []; args.push(me());
 function invokeSendFrom142 () { var args : Array<Dynamic> = []; args.push(me()); args.push(142); invokeHost("sendFrom", args); }
 
 
+function setColonizing (currentPlayer : Player, value : Bool) {
+	var playerIndex = getPlayerIndex(currentPlayer);
+	isSpecialColonizing[playerIndex] = value;
+}
+
+
 function specialColonize (currentPlayer : Player, zoneId : Int) {
 	var playerIndex = getPlayerIndex(currentPlayer);
 	var beach = getZone(zoneId);
-	if (
-		landingPoints[playerIndex].length < maxLandingPoints
-		&& currentPlayer.getResource(Resource.Money) >= specialColonizeCost
-		&& beach.owner == null
-		&& beach.colonizeBy == null
-		&& [for (unit in beach.units) if (!unit.isOwner(currentPlayer) && unit.kind != Unit.Sheep) unit].length == 0
-	) {
-		currentPlayer.addResource(Resource.Money, -specialColonizeCost);
-		currentPlayer.takeControl(beach);
-		currentPlayer.objectives.setVisible("colonize" + zoneId, false);
-		landingPoints[playerIndex].push(zoneId);
-	}
+	currentPlayer.addResource(Resource.Money, -specialColonizeCost);
+	currentPlayer.takeControl(beach);
+	currentPlayer.objectives.setStatus("colonize" + zoneId, OStatus.Done);
+	landingPoints[playerIndex].push(zoneId);
+	isSpecialColonizing[playerIndex] = false;
 }
 
 
