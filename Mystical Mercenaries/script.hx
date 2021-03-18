@@ -1,7 +1,6 @@
 var relationMultiplier = 10;
-var relationToHire = 7.5;
-var relationPerIncrease = 1.0;
-var jotnarRelationCap = 9.9;
+var relationToHire = 8.0;
+var relationPerIncrease = 2.0;
 var hireCooldown = 120;
 
 var homeZones = [225, 101, 97, 215, 179, 147, 242, 124];
@@ -35,28 +34,30 @@ var neutrals : Array<{
 	isDead: Bool,
 	price : Int,
 	resource : ResourceKind,
-	relationNotes : String,
 	hireNotes : String
 }> = [
 	{
-		name: "Jotnar", formatName: "Giant", faction: getFaction("Giant"),
-		unit: Unit.Giant, count: 1, homeZone: getZone(170),
+		name: "Skrymir", formatName: "Giant", faction: getFaction("Giant"),
+		unit: Unit.Giant, count: 1, homeZone: getZone(173),
 		isDead: false, price: 250, resource: Resource.Food,
-		relationNotes: " (to prevent them from allying with just one faction, this maxes out at " + jotnarRelationCap * relationMultiplier + "%, not 100%)",
-		hireNotes: "Slow but powerful, the [Giant]s are the strongest warriors available for hire."
+		hireNotes: "Slow but powerful, the [Giant]s are among the strongest warriors available for hire."
+	},
+	{
+		name: "Fjolsvin", formatName: "Giant2", faction: getFaction("Giant2"),
+		unit: Unit.Giant2, count: 1, homeZone: getZone(146),
+		isDead: false, price: 250, resource: Resource.Food,
+		hireNotes: "Slow but powerful, the [Giant2]s are among the strongest warriors available for hire."
 	},
 	{
 		name: "Kobolds", formatName: "Kobold", faction: getFaction("Kobold"),
-		unit: Unit.Kobold, count: 3, homeZone: getZone(153),
+		unit: Unit.Kobold, count: 3, homeZone: getZone(170),
 		isDead: false, price: 250, resource: Resource.Wood,
-		relationNotes: "",
 		hireNotes: "Considered pests by many, the [Kobold]s will leave a trail of their kind along their path."
 	},
 	{
 		name: "Myrkalfar", formatName: "Myrkalfar", faction: getFaction("Myrkalfar"),
-		unit: Unit.Myrkalfar, count: 2, homeZone: getZone(146),
+		unit: Unit.Myrkalfar, count: 2, homeZone: getZone(153),
 		isDead: false, price: 250, resource: Resource.Money,
-		relationNotes: "",
 		hireNotes: "The devious [Myrkalfar]s will drain your enemy's resources for the duration of their attack."
 	}
 ];
@@ -94,13 +95,13 @@ function onFirstLaunch () {
 				currentPlayer.player.objectives.add("victoryExplanation", "These lands are vast and mysterious, and the factions that live here are unlike any beings known to your clan! Maybe you can befriend them while you attempt to gain victory by researching the ancient lore found here?");
 				// we'll want to show each player their own relationship progress with the neutrals
 				for (neutralFaction in neutrals) {
-					currentPlayer.player.objectives.add("progress" + neutralFaction.name, "Your relationship with the [" + neutralFaction.formatName + "]s" + neutralFaction.relationNotes + ":", { visible: true, showProgressBar: true, goalVal: 100 });
+					currentPlayer.player.objectives.add("progress" + neutralFaction.name, "Your relationship with the [" + neutralFaction.formatName + "]s:", { visible: true, showProgressBar: true, goalVal: 100 });
 				}
 				// we'll set up objectives for each (human) player to be able to select a neutral faction to hire and a fellow player to target,
 				// but we won't show them until the right conditions are met
 				currentPlayer.player.objectives.add(
 					"hireExplanation",
-					"For the right price, any neutral faction that considers you a friend (" + relationToHire * relationMultiplier + "%) will attack your enemies! The better your relationship, the more units they'll send (every " + relationPerIncrease * relationMultiplier + "%)! They do, however, all share a cooldown.",
+					"For the right price, any neutral faction that considers you a good friend (" + relationToHire * relationMultiplier + "%) will attack your enemies! And they'll send even more units at " + ((relationToHire + relationPerIncrease) * relationMultiplier) + "%. They do, however, all share a cooldown.",
 					{ visible: false, showProgressBar: true, goalVal: hireCooldown },
 					{ name: "Hire a faction", action: "invokeHiring" }
 				);
@@ -163,26 +164,6 @@ function regularUpdate (dt : Float) {
 		@sync for (neutralFaction in neutrals) {
 			if (!neutralFaction.isDead && neutralFaction.homeZone.getUnit(neutralFaction.unit) == null) {
 				neutralFaction.isDead = true;
-			}
-		}
-
-		// we have some special logic for just the Jotnar; if any player is about to befriend
-		// them, we should set them back just a bit, since (unlike the Kobolds and Myrkalfar)
-		// the Jotnar cease to be neutral once someone befriends them fully
-		var jotnarFaction = null;
-		for (neutralFaction in neutrals) {
-			if (neutralFaction.name == "Jotnar") {
-				jotnarFaction = neutralFaction;
-				break;
-			}
-		}
-		@sync for (currentPlayer in players) {
-			if (!jotnarFaction.isDead) {
-				var jotnarRelation = currentPlayer.player.getAlignment(jotnarFaction.faction, false);
-				var jotnarCommon = currentPlayer.player.getFactionRelation(jotnarFaction.faction).common;
-				if (jotnarRelation > jotnarRelationCap) {
-					jotnarCommon.trade -= (jotnarRelation - jotnarRelationCap);
-				}
 			}
 		}
 
@@ -249,7 +230,8 @@ function regularUpdate (dt : Float) {
 
 // oh how I wish we could pass args to the objective button callbacks
 function invokeHiring () { var args : Array<Dynamic> = []; args.push(me()); invokeHost("startHiring", args); }
-function invokeHireJotnar () { var args : Array<Dynamic> = []; args.push(me()); args.push("Jotnar"); invokeHost("hireFaction", args); }
+function invokeHireSkrymir () { var args : Array<Dynamic> = []; args.push(me()); args.push("Skrymir"); invokeHost("hireFaction", args); }
+function invokeHireFjolsvin () { var args : Array<Dynamic> = []; args.push(me()); args.push("Fjolsvin"); invokeHost("hireFaction", args); }
 function invokeHireKobolds () { var args : Array<Dynamic> = []; args.push(me()); args.push("Kobolds"); invokeHost("hireFaction", args); }
 function invokeHireMyrkalfar () { var args : Array<Dynamic> = []; args.push(me()); args.push("Myrkalfar"); invokeHost("hireFaction", args); }
 function invokeAttackPlayer0 () { var args : Array<Dynamic> = []; args.push(me()); args.push(0); invokeHost("orderAttack", args); }
