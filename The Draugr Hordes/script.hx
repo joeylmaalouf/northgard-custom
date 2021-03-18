@@ -102,13 +102,13 @@ function onFirstLaunch () {
 
 		// disable the normal random events
 		noEvent();
+	}
 
-		// get a reference to the Gate of Helheim for later use in the cutscenes
-		for (building in centerZone.buildings) {
-			if (building.kind == Building.Helheim) {
-				helheimGate = building;
-				break;
-			}
+	// get a reference to the Gate of Helheim for later use in the cutscenes
+	for (building in centerZone.buildings) {
+		if (building.kind == Building.Helheim) {
+			helheimGate = building;
+			break;
 		}
 	}
 }

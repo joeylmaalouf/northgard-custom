@@ -47,14 +47,6 @@ function onFirstLaunch () {
 		// we don't want any events to happen naturally, we'll be triggering them ourselves
 		noEvent();
 
-		// we'll want a reference to Yggdrasil for later use in the cutscene
-		for (building in centerZone.buildings) {
-			if (building.kind == Building.Yggdrasil) {
-				yggdrasil = building;
-				break;
-			}
-		}
-
 		// we want it to be appropriately challenging to clear out Yggdrasil
 		centerZone.addUnit(Unit.IceGolem, humanPlayers.length * 2, null, false);
 
@@ -69,6 +61,14 @@ function onFirstLaunch () {
 		// but FoodStarterPack also doesn't seem to work, so we'll add the resources ourselves
 		@sync for (currentPlayer in state.players) {
 			currentPlayer.addResource(Resource.Food, 200, false);
+		}
+	}
+
+	// we'll want a reference to Yggdrasil for later use in the cutscene
+	for (building in centerZone.buildings) {
+		if (building.kind == Building.Yggdrasil) {
+			yggdrasil = building;
+			break;
 		}
 	}
 }
