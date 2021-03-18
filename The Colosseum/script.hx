@@ -40,7 +40,7 @@ function onFirstLaunch () {
 				name: "Send a Drakkar",
 				action: "invokeDrakkar"
 			});
-			currentPlayer.objectives.add("rewardinfo", "Eldhrumnir is both free to forge and your only available relic; it will keep your units healthy as long as you can feast, and you'll gain a free feast for every 250 military experience earned. You'll also (invisibly) gain the Recruitment lore at 1000 military experience, so get in there! The creatures will respawn every 3 months.");
+			currentPlayer.objectives.add("rewardinfo", "Gefjun's Jar is both free to forge and your only available relic; it will help you recover units lost to the arena. You'll also gain a free feast for every 250 military experience earned, and you'll (invisibly) gain the Recruitment lore at 1000 military experience, so get in there! The creatures will respawn every 3 months.");
 			currentPlayer.objectives.add("militaryxp", "To win this competition, be the first to acquire ::value:: [MilitaryXP]!", {
 				visible: true,
 				showProgressBar: true,
