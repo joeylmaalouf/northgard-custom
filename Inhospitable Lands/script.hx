@@ -6,6 +6,9 @@ var endWarningTime = 12 * 60;
 var eventWarningDelay = 2 * 60;
 var eventTimer = 4 * 60;
 var eventOffset = 2 * 60;
+var yggdrasil = null;
+var cutsceneStarted = false;
+var cutsceneOver = false;
 
 
 function saveState () {
@@ -44,6 +47,14 @@ function onFirstLaunch () {
 		// we don't want any events to happen naturally, we'll be triggering them ourselves
 		noEvent();
 
+		// we'll want a reference to Yggdrasil for later use in the cutscene
+		for (building in centerZone.buildings) {
+			if (building.kind == Building.Yggdrasil) {
+				yggdrasil = building;
+				break;
+			}
+		}
+
 		// we want it to be appropriately challenging to clear out Yggdrasil
 		centerZone.addUnit(Unit.IceGolem, humanPlayers.length * 2, null, false);
 
@@ -78,9 +89,14 @@ function regularUpdate (dt : Float) {
 
 		// if time's up and we haven't finished colonizing Yggdrasil, trigger defeat
 		if (state.time > timeLimit) {
-			// TODO: cutscene where everything turns into Naströnd as Yggdrasil takes the island back?
-			@sync for (currentPlayer in state.startPlayers) {
-				currentPlayer.customDefeat("You've failed to take over these lands in time!");
+			// before we actually end it, we'll show a cutscene where Yggdrasil takes the island back
+			if (!cutsceneStarted) {
+				invokeAll("defeatCutscene", []);
+			}
+			if (cutsceneOver) {
+				@sync for (currentPlayer in state.startPlayers) {
+					currentPlayer.customDefeat("You've failed to take over these lands in time!");
+				}
 			}
 		}
 
@@ -98,4 +114,24 @@ function regularUpdate (dt : Float) {
 			}
 		}
 	}
+}
+
+
+function defeatCutscene () {
+	cutsceneStarted = true;
+	setPause(true);
+	moveCamera({x: yggdrasil.x, y: yggdrasil.y});
+	wait(1);
+	shakeCamera();
+	if (isHost()) {
+		for (zone in centerZone.next) {
+			for (building in zone.buildings) {
+				building.destroy();
+			}
+			// TODO: when the API lets us add buildings and not just destroy them, turn everything into Naströnd
+		}
+	}
+	wait(1);
+	setPause(false);
+	cutsceneOver = true;
 }
