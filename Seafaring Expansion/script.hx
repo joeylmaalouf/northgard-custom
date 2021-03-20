@@ -32,8 +32,9 @@ function onFirstLaunch () {
 	if (isHost()) {
 		@sync for (currentPlayer in state.players) {
 			if (!currentPlayer.isAI) {
-				currentPlayer.objectives.add("summary", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland!");
-				currentPlayer.objectives.add("details", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you might have to click the button multiple times for larger groups!");
+				currentPlayer.objectives.add("summaryInfo", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland!");
+				currentPlayer.objectives.add("shipInfo", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you'll have to send larger groups over in multiple parts!");
+				currentPlayer.objectives.add("civilianInfo", "Non-[Villager] civilians prioritize their jobs over adventure, so they won't board the ships that leave from your [TownHall], though they will return from the mainland.");
 				for (beach in mainlandBeachZones) {
 					var transportBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal && building.kind != Building.Stones && building.kind != Building.IronDeposit) "[" + building.kind + "]"].join(", ");
 					currentPlayer.objectives.add(
@@ -105,8 +106,9 @@ function regularUpdate (dt : Float) {
 			@sync for (playerIndex in 0 ... homeZones.length) {
 				var currentPlayer = homeZones[playerIndex].owner;
 				if (currentPlayer != null && !currentPlayer.isAI) {
-					currentPlayer.objectives.setVisible("summary", !isSpecialColonizing[playerIndex]);
-					currentPlayer.objectives.setVisible("details", !isSpecialColonizing[playerIndex]);
+					currentPlayer.objectives.setVisible("summaryInfo", !isSpecialColonizing[playerIndex]);
+					currentPlayer.objectives.setVisible("shipInfo", !isSpecialColonizing[playerIndex]);
+					currentPlayer.objectives.setVisible("civilianInfo", !isSpecialColonizing[playerIndex]);
 					// we want to process the landing points first because if we lose any of them, we want the colonize options logic below to pick them up
 					for (landingPoint in landingPoints[playerIndex]) {
 						if (getZone(landingPoint).owner != currentPlayer) {
@@ -259,27 +261,33 @@ function specialColonize (currentPlayer : Player, zoneId : Int) {
 
 function sendTo (currentPlayer : Player, zoneId : Int) {
 	var playerIndex = getPlayerIndex(currentPlayer);
-	sendUnits(currentPlayer, homeZones[playerIndex].id, zoneId);
+	sendUnits(currentPlayer, homeZones[playerIndex].id, zoneId, false);
 }
 
 
 function sendFrom (currentPlayer : Player, zoneId : Int) {
 	var playerIndex = getPlayerIndex(currentPlayer);
-	sendUnits(currentPlayer, zoneId, homeZones[playerIndex].id);
+	sendUnits(currentPlayer, zoneId, homeZones[playerIndex].id, true);
 }
 
 
 // I wish we could use actual drakkar here, but they need to be given very specific src/dst zones or they won't appear at all and no units will spawn,
 // and with so many possible src/dst combinations of every town hall and every mainland beach, that's not feasible here, so we'll just teleport them over
 // we could just figure out one sea zone src for each beach zone dst, but we'd still have the issue of drakkar spawning new units instead of moving existing ones
-function sendUnits (currentPlayer : Player, srcZoneId : Int, dstZoneId : Int) {
+function sendUnits (currentPlayer : Player, srcZoneId : Int, dstZoneId : Int, includeProducers : Bool) {
 	var drakkarIndices = [];
 	var zoneUnits = getZone(srcZoneId).units;
 	var targetZone = getZone(dstZoneId);
 	// we have to loop twice, once to get the indices and again to pull out the units in reverse, since the list of units in the zone will be updated as we go
 	for (unitIndex in 0 ... zoneUnits.length) {
 		var unit = zoneUnits[unitIndex];
-		if (unit.owner == currentPlayer && unit.kind != Unit.Sailor) {
+		if (
+			(unit.owner == currentPlayer)
+			&& (includeProducers
+				? (unit.kind != Unit.Sailor) // when bringing units back, we'll take everyone besides sailors
+				: (unit.kind == Unit.Villager || unit.isMilitary) // when sending units over, we'll only send actual villagers or military
+			)
+		) {
 			drakkarIndices.push(unitIndex);
 		}
 		// the game crashes if we try to send too many units at once
