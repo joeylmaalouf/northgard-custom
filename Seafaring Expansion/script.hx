@@ -3,8 +3,11 @@ var mainlandBeachZones = [for (i in [118, 115, 104, 95, 103, 110, 123, 139, 154,
 var homeZones = [for (i in [70, 30, 63, 155, 250, 304, 267, 174]) getZone(i)];
 var landingPoints = [[], [], [], [], [], [], [], []];
 var isSpecialColonizing = [false, false, false, false, false, false, false, false];
+var isTransporting = [false, false, false, false, false, false, false, false];
+var lastDrakkarTime = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 var maxLandingPoints = 2;
-var maxUnitsPerDrakkar = 12;
+var maxUnitsPerDrakkar = 8;
+var drakkarCooldown = 10;
 var specialColonizeCost = 200;
 
 
@@ -33,10 +36,46 @@ function onFirstLaunch () {
 		@sync for (currentPlayer in state.players) {
 			if (!currentPlayer.isAI) {
 				currentPlayer.objectives.add("summaryInfo", "To win this free-for-all brawl, you'll need to hold map center as you would normally. What's not normal, however, is how you'll get there; as a master of the sea, you'll need to send drakkars from your home base to the mainland!");
-				currentPlayer.objectives.add("shipInfo", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you'll have to send larger groups over in multiple parts!");
+				currentPlayer.objectives.add("shipInfo", "After exploring an open beach via harbor, you can colonize up to " + maxLandingPoints + " landing points from afar and ferry your units between them. Up to " + maxUnitsPerDrakkar + " units can fit in each ship, so you'll have to make multiple trips for larger groups!");
 				currentPlayer.objectives.add("civilianInfo", "Non-[Villager] civilians prioritize their jobs over adventure, so they won't board the ships that leave from your [TownHall], though they will return from the mainland.");
+				currentPlayer.objectives.add(
+					"showColonizable",
+					"You can view a list of the beaches available to be colonized here:",
+					{ visible: false },
+					{ name: "Show Me", action: "invokeSpecialColonizing" }
+				);
+				currentPlayer.objectives.add(
+					"cancelShowColonizable",
+					"You can return to the main menu without colonizing anything:",
+					{ visible: false },
+					{ name: "Cancel", action: "invokeCancel" }
+				);
+				currentPlayer.objectives.add(
+					"specialColonizeInfo",
+					"Or you can pay " + specialColonizeCost + " [Money]s to colonize any available beach as a landing point:",
+					{ visible: false }
+				);
+				currentPlayer.objectives.add(
+					"showTransportable",
+					"You can view a list of the beaches available for unit transfer here (when the cooldown has elapsed):",
+					{ visible: false, showProgressBar: true, goalVal: drakkarCooldown },
+					{ name: "Show Me", action: "invokeTransporting" }
+				);
+				currentPlayer.objectives.add(
+					"cancelShowTransportable",
+					"You can return to the main menu without transporting anyone:",
+					{ visible: false },
+					{ name: "Cancel", action: "invokeCancel" }
+				);
 				for (beach in mainlandBeachZones) {
+					var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
 					var transportBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal && building.kind != Building.Stones && building.kind != Building.IronDeposit) "[" + building.kind + "]"].join(", ");
+					currentPlayer.objectives.add(
+						"colonize" + beach.id,
+						"Colonize the beach with: " + colonizeBuildingList,
+						{ visible: false },
+						{ name: "Colonize", action: "invokeSpecialColonize" + beach.id }
+					);
 					currentPlayer.objectives.add(
 						"sendTo" + beach.id,
 						"You can send units from your [TownHall] to the beach with: " + transportBuildingList,
@@ -48,32 +87,6 @@ function onFirstLaunch () {
 						"You can send units back to your [TownHall] from the beach with: " + transportBuildingList,
 						{ visible: false },
 						{ name: "Retrieve", action: "invokeSendFrom" + beach.id }
-					);
-				}
-				currentPlayer.objectives.add(
-					"showColonizable",
-					"You can view a list of the beaches available to be colonized here:",
-					{ visible: false },
-					{ name: "Show Me", action: "invokeSpecialColonizing" }
-				);
-				currentPlayer.objectives.add(
-					"cancelShowColonizable",
-					"You can return to the main menu without colonizing anything:",
-					{ visible: false },
-					{ name: "Cancel", action: "invokeCancelColonizing" }
-				);
-				currentPlayer.objectives.add(
-					"specialColonizeInfo",
-					"Or you can pay " + specialColonizeCost + " [Money]s to colonize any available beach as a landing point:",
-					{ visible: false }
-				);
-				for (beach in mainlandBeachZones) {
-					var colonizeBuildingList = [for (building in beach.buildings) if (building.kind != Building.Decal && building.kind != Building.Shoal) "[" + building.kind + "]"].join(", ");
-					currentPlayer.objectives.add(
-						"colonize" + beach.id,
-						"Colonize the beach with: " + colonizeBuildingList,
-						{ visible: false },
-						{ name: "Colonize", action: "invokeSpecialColonize" + beach.id }
 					);
 				}
 			}
@@ -101,15 +114,26 @@ function onEachLaunch () {
 // Regular update is called every 0.5s
 function regularUpdate (dt : Float) {
 	if (isHost()) {
-		// every few seconds, we'll check if there are any mainland beaches to potentially colonize or transfer units between
-		if (state.time % 3 < 0.1) {
-			@sync for (playerIndex in 0 ... homeZones.length) {
-				var currentPlayer = homeZones[playerIndex].owner;
-				if (currentPlayer != null && !currentPlayer.isAI) {
-					currentPlayer.objectives.setVisible("summaryInfo", !isSpecialColonizing[playerIndex]);
-					currentPlayer.objectives.setVisible("shipInfo", !isSpecialColonizing[playerIndex]);
-					currentPlayer.objectives.setVisible("civilianInfo", !isSpecialColonizing[playerIndex]);
-					// we want to process the landing points first because if we lose any of them, we want the colonize options logic below to pick them up
+		@sync for (playerIndex in 0 ... homeZones.length) {
+			var currentPlayer = homeZones[playerIndex].owner;
+			if (currentPlayer != null && !currentPlayer.isAI) {
+				// every second, we'll update any tracked cooldowns
+				if (state.time % 1 < 0.1) {
+					// we want to show each player their drakkar cooldown
+					var timeSinceDrakkar = toInt(state.time - lastDrakkarTime[playerIndex]);
+					if (timeSinceDrakkar <= drakkarCooldown) {
+						currentPlayer.objectives.setCurrentVal("showTransportable", timeSinceDrakkar);
+					}
+					// if the player's transport cooldown has not yet elapsed, we'll still show the test but gray it out
+					currentPlayer.objectives.setStatus("showTransportable", timeSinceDrakkar >= drakkarCooldown ? OStatus.Empty : OStatus.Missed);
+				}
+				// every few seconds, we'll check if there are any mainland beaches to potentially colonize or transport units between
+				if (state.time % 3 < 0.1) {
+					var onMainMenu = !isSpecialColonizing[playerIndex] && !isTransporting[playerIndex];
+					currentPlayer.objectives.setVisible("summaryInfo", onMainMenu);
+					currentPlayer.objectives.setVisible("shipInfo", onMainMenu);
+					currentPlayer.objectives.setVisible("civilianInfo", onMainMenu);
+					// we want to do a first pass on the landing points early because if we lose any of them, we want the colonize options logic below to pick them up
 					for (landingPoint in landingPoints[playerIndex]) {
 						if (getZone(landingPoint).owner != currentPlayer) {
 							landingPoints[playerIndex].remove(landingPoint);
@@ -117,12 +141,8 @@ function regularUpdate (dt : Float) {
 							currentPlayer.objectives.setVisible("sendTo" + landingPoint, false);
 							currentPlayer.objectives.setVisible("sendFrom" + landingPoint, false);
 						}
-						else {
-							currentPlayer.objectives.setVisible("sendTo" + landingPoint, !isSpecialColonizing[playerIndex]);
-							currentPlayer.objectives.setVisible("sendFrom" + landingPoint, !isSpecialColonizing[playerIndex]);
-						}
 					}
-					// if the player hasn't maxed out their landing points yet and they've discovered any of the potential ones, give them the option to see the list
+					// if the player hasn't maxed out their landing points yet and they've discovered any of the potential ones, we'll give them the option to see the list
 					var hasDiscoveredAny = false;
 					for (beach in mainlandBeachZones) {
 						if (currentPlayer.hasDiscovered(beach)) {
@@ -130,15 +150,14 @@ function regularUpdate (dt : Float) {
 							break;
 						}
 					}
-					var canSpecialColonize = (
-						!isSpecialColonizing[playerIndex]
-						&& landingPoints[playerIndex].length < maxLandingPoints
-						&& hasDiscoveredAny
-					);
-					currentPlayer.objectives.setVisible("showColonizable", canSpecialColonize);
+					currentPlayer.objectives.setVisible("showColonizable", onMainMenu && landingPoints[playerIndex].length < maxLandingPoints && hasDiscoveredAny);
+					// and if the player has any landing points colonized, we'll give them the option to view the transport menu
+					currentPlayer.objectives.setVisible("showTransportable", onMainMenu && landingPoints[playerIndex].length > 0);
+					// if we're in a sub-menu, we should show any cancel buttons or information boxes
 					currentPlayer.objectives.setVisible("cancelShowColonizable", isSpecialColonizing[playerIndex]);
 					currentPlayer.objectives.setVisible("specialColonizeInfo", isSpecialColonizing[playerIndex]);
-					// we'll show all of the beaches they've discovered, but gray out any they can't colonize
+					currentPlayer.objectives.setVisible("cancelShowTransportable", isTransporting[playerIndex]);
+					// if we're in the special colonize menu, we'll show all of the beaches they've discovered, but gray out any they can't colonize
 					for (beach in mainlandBeachZones) {
 						var isSpecialColonizable = (
 							landingPoints[playerIndex].length < maxLandingPoints
@@ -152,6 +171,11 @@ function regularUpdate (dt : Float) {
 							currentPlayer.objectives.setStatus("colonize" + beach.id, isSpecialColonizable ? OStatus.Empty : OStatus.Missed);
 						}
 						currentPlayer.objectives.setVisible("colonize" + beach.id, isSpecialColonizing[playerIndex] && currentPlayer.hasDiscovered(beach));
+					}
+					// if we're in the transport menu, we'll show the send to/from options for each owned landing point
+					for (landingPoint in landingPoints[playerIndex]) {
+						currentPlayer.objectives.setVisible("sendTo" + landingPoint, isTransporting[playerIndex]);
+						currentPlayer.objectives.setVisible("sendFrom" + landingPoint, isTransporting[playerIndex]);
 					}
 				}
 			}
@@ -170,8 +194,9 @@ function getPlayerIndex (currentPlayer : Player) {
 }
 
 
-function invokeSpecialColonizing () { var args : Array<Dynamic> = []; args.push(me()); args.push(true); invokeHost("setColonizing", args); }
-function invokeCancelColonizing () { var args : Array<Dynamic> = []; args.push(me()); args.push(false); invokeHost("setColonizing", args); }
+function invokeSpecialColonizing () { var args : Array<Dynamic> = []; args.push(me()); invokeHost("setColonizing", args); }
+function invokeTransporting () { var args : Array<Dynamic> = []; args.push(me()); invokeHost("setTransporting", args); }
+function invokeCancel () { var args : Array<Dynamic> = []; args.push(me()); invokeHost("setCanceled", args); }
 // these need to match mainlandBeachZones...
 // I DO NOT LIKE THIS, SHIRO GAMES. LET ME PASS ARGS TO THE OBJECTIVE BUTTON, OR AT LEAST LET ME DYNAMICALLY CREATE THESE CALLBACK FUNCTIONS
 function invokeSpecialColonize118 () { var args : Array<Dynamic> = []; args.push(me()); args.push(118); invokeHost("specialColonize", args); }
@@ -242,32 +267,55 @@ function invokeSendFrom156 () { var args : Array<Dynamic> = []; args.push(me());
 function invokeSendFrom142 () { var args : Array<Dynamic> = []; args.push(me()); args.push(142); invokeHost("sendFrom", args); }
 
 
-function setColonizing (currentPlayer : Player, value : Bool) {
+function setColonizing (currentPlayer : Player) {
 	var playerIndex = getPlayerIndex(currentPlayer);
-	isSpecialColonizing[playerIndex] = value;
+	isSpecialColonizing[playerIndex] = true;
+}
+
+
+function setTransporting (currentPlayer : Player) {
+	var playerIndex = getPlayerIndex(currentPlayer);
+	isTransporting[playerIndex] = true;
+}
+
+
+function setCanceled (currentPlayer : Player) {
+	var playerIndex = getPlayerIndex(currentPlayer);
+	isSpecialColonizing[playerIndex] = false;
+	isTransporting[playerIndex] = false;
 }
 
 
 function specialColonize (currentPlayer : Player, zoneId : Int) {
 	var playerIndex = getPlayerIndex(currentPlayer);
-	var beach = getZone(zoneId);
-	currentPlayer.addResource(Resource.Money, -specialColonizeCost);
-	currentPlayer.takeControl(beach);
-	currentPlayer.objectives.setStatus("colonize" + zoneId, OStatus.Done);
-	landingPoints[playerIndex].push(zoneId);
-	isSpecialColonizing[playerIndex] = false;
+	if (isSpecialColonizing[playerIndex]) {
+		var beach = getZone(zoneId);
+		currentPlayer.addResource(Resource.Money, -specialColonizeCost);
+		currentPlayer.takeControl(beach);
+		currentPlayer.objectives.setStatus("colonize" + zoneId, OStatus.Done);
+		landingPoints[playerIndex].push(zoneId);
+		isSpecialColonizing[playerIndex] = false;
+	}
 }
 
 
 function sendTo (currentPlayer : Player, zoneId : Int) {
 	var playerIndex = getPlayerIndex(currentPlayer);
-	sendUnits(currentPlayer, homeZones[playerIndex].id, zoneId, false);
+	if (isTransporting[playerIndex]) {
+		sendUnits(currentPlayer, homeZones[playerIndex].id, zoneId, false);
+		lastDrakkarTime[playerIndex] = state.time;
+		isTransporting[playerIndex] = false;
+	}
 }
 
 
 function sendFrom (currentPlayer : Player, zoneId : Int) {
 	var playerIndex = getPlayerIndex(currentPlayer);
-	sendUnits(currentPlayer, zoneId, homeZones[playerIndex].id, true);
+	if (isTransporting[playerIndex]) {
+		sendUnits(currentPlayer, zoneId, homeZones[playerIndex].id, true);
+		lastDrakkarTime[playerIndex] = state.time;
+		isTransporting[playerIndex] = false;
+	}
 }
 
 
