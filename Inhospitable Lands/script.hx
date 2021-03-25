@@ -1,4 +1,6 @@
 var centerZone = getZone(153);
+var homeZones = [for (i in [100, 89, 113, 154, 202, 243, 208, 161]) getZone(i)];
+var isViewingMissions = [false, false, false, false, false, false, false, false];
 var humanPlayers = [];
 var endingWarned = false;
 var timeLimit = 4 * 12 * 60;
@@ -6,6 +8,12 @@ var endWarningTime = 12 * 60;
 var eventWarningDelay = 2 * 60;
 var eventTimer = 4 * 60;
 var eventOffset = 2 * 60;
+var landZoneCount = 74;
+var allScouted = false;
+var defeatedSkrymir = false;
+var defeatedFjolsvin = false;
+var defeatedKobolds = false;
+var defeatedMyrkalfar = false;
 var yggdrasil = null;
 var cutsceneStarted = false;
 var cutsceneOver = false;
@@ -41,6 +49,13 @@ function onFirstLaunch () {
 				currentPlayer.objectives.add("recklessscouts", "Your [Scout]s are a little too reckless for this environment, so while they will explore more quickly, they'll also die immediately afterwards.");
 				currentPlayer.objectives.add("lazyvillagers", "And your [Villager]s are a little lazy when it comes to gathering food, so your [Sheep] will have to pick up the slack. Thankfully, they'll breed new ones each year.");
 				currentPlayer.objectives.add("colonizetree", "To conquer these lands, you must work together to enable one of you to colonize [Yggdrasil] before " + timeLimit / 12 / 60 + " years have passed, or else the World Tree will reclaim these lands!");
+				currentPlayer.objectives.add("bonusmissions", "To help each other out, you can gain bonuses for your team by completing side missions:", null, { name: "View missions", action: "invokeViewingMissions" });
+				currentPlayer.objectives.add("returntomain", "Return to the main menu:", { visible: false }, { name: "Go back", action: "invokeViewingMainMenu" });
+				currentPlayer.objectives.add("scoutbonus", "Scout the entire map to give everyone a free feast!", { visible: false });
+				currentPlayer.objectives.add("skrymirbonus", "Defeat the [Giant]s to give everyone the [BetterSilo] Knowledge!", { visible: false });
+				currentPlayer.objectives.add("fjolsvinbonus", "Defeat the [Giant2]s to give everyone the [BuildingUpkeep] Knowledge!", { visible: false });
+				currentPlayer.objectives.add("koboldsbonus", "Defeat the [Kobold]s to give everyone the [Recruit] Knowledge!", { visible: false });
+				currentPlayer.objectives.add("myrkalfarbonus", "Defeat the [Myrkalfar]s to give everyone [Stone] and [Iron]!", { visible: false });
 			}
 		}
 
@@ -113,6 +128,66 @@ function regularUpdate (dt : Float) {
 				state.events.setEvent(eventKind, (eventTimer - eventWarningDelay) / 60);
 			}
 		}
+
+		// every few seconds, we'll update the objectives menu and check the side missions to see whether we can grant the players any additional bonuses
+		if (state.time % 2 < 0.1) {
+			@sync for (playerIndex in 0 ... homeZones.length) {
+				var currentPlayer = homeZones[playerIndex].owner;
+				if (!currentPlayer.isAI) {
+					var viewingMissions = isViewingMissions[playerIndex];
+					currentPlayer.objectives.setVisible("inhospitablelands", !viewingMissions);
+					currentPlayer.objectives.setVisible("recklessscouts", !viewingMissions);
+					currentPlayer.objectives.setVisible("lazyvillagers", !viewingMissions);
+					currentPlayer.objectives.setVisible("colonizetree", !viewingMissions);
+					currentPlayer.objectives.setVisible("bonusmissions", !viewingMissions);
+					currentPlayer.objectives.setVisible("returntomain", viewingMissions);
+					currentPlayer.objectives.setVisible("scoutbonus", viewingMissions);
+					currentPlayer.objectives.setVisible("skrymirbonus", viewingMissions);
+					currentPlayer.objectives.setVisible("fjolsvinbonus", viewingMissions);
+					currentPlayer.objectives.setVisible("koboldsbonus", viewingMissions);
+					currentPlayer.objectives.setVisible("myrkalfarbonus", viewingMissions);
+				}
+			}
+
+			// we can just check one player's discovered zones here because they're all a team and therefore share them,
+			// but we can't compare against state.zones because it includes sea zones so we're using a precalculated landZoneCount
+			if (!allScouted && me().discovered.length >= landZoneCount) {
+				@sync for (currentPlayer in state.players) {
+					++currentPlayer.freeFeast;
+					if (!currentPlayer.isAI) { currentPlayer.objectives.setStatus("scoutbonus", OStatus.Done); }
+				}
+				allScouted = true;
+			}
+			if (!defeatedSkrymir && getFaction("Giant") == null) {
+				@sync for (currentPlayer in state.players) {
+					currentPlayer.unlockTech(Tech.BetterSilo, true);
+					if (!currentPlayer.isAI) { currentPlayer.objectives.setStatus("skrymirbonus", OStatus.Done); }
+				}
+				defeatedSkrymir = true;
+			}
+			if (!defeatedFjolsvin && getFaction("Giant2") == null) {
+				@sync for (currentPlayer in state.players) {
+					currentPlayer.unlockTech(Tech.BuildingUpkeep, true);
+					if (!currentPlayer.isAI) { currentPlayer.objectives.setStatus("fjolsvinbonus", OStatus.Done); }
+				}
+				defeatedFjolsvin = true;
+			}
+			if (!defeatedKobolds && getFaction("Kobold") == null) {
+				@sync for (currentPlayer in state.players) {
+					currentPlayer.unlockTech(Tech.Recruit, true);
+					if (!currentPlayer.isAI) { currentPlayer.objectives.setStatus("koboldsbonus", OStatus.Done); }
+				}
+				defeatedKobolds = true;
+			}
+			if (!defeatedMyrkalfar && getFaction("Myrkalfar") == null) {
+				@sync for (currentPlayer in state.players) {
+					currentPlayer.addResource(Resource.Stone, 15, false);
+					currentPlayer.addResource(Resource.Iron, 10, false);
+					if (!currentPlayer.isAI) { currentPlayer.objectives.setStatus("myrkalfarbonus", OStatus.Done); }
+				}
+				defeatedMyrkalfar = true;
+			}
+		}
 	}
 }
 
@@ -128,10 +203,25 @@ function defeatCutscene () {
 			for (building in zone.buildings) {
 				building.destroy();
 			}
-			// TODO: when the API lets us add buildings and not just destroy them, turn everything into Naströnd
+			// TODO: when the API lets us add buildings and not just destroy them, turn everything into Naströnd/Landvidi
 		}
 	}
 	wait(1);
 	setPause(false);
 	cutsceneOver = true;
 }
+
+
+function getPlayerIndex (currentPlayer : Player) {
+	for (i in 0 ... homeZones.length) {
+		if (homeZones[i].owner == currentPlayer) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+
+function invokeViewingMissions () { var args : Array<Dynamic> = []; args.push(me()); args.push(true); invokeHost("setViewingMissions", args); }
+function invokeViewingMainMenu () { var args : Array<Dynamic> = []; args.push(me()); args.push(false); invokeHost("setViewingMissions", args); }
+function setViewingMissions (currentPlayer : Player, value : Bool) { isViewingMissions[getPlayerIndex(currentPlayer)] = value; }
