@@ -4,7 +4,7 @@ var isViewingMissions = [false, false, false, false, false, false, false, false]
 var humanPlayers = [];
 var endingWarned = false;
 var timeLimit = 4 * 12 * 60;
-var endWarningTime = 12 * 60;
+var endWarningTime = 9 * 60;
 var eventWarningDelay = 2 * 60;
 var eventTimer = 4 * 60;
 var eventOffset = 2 * 60;
@@ -117,7 +117,7 @@ function regularUpdate (dt : Float) {
 
 		if (!endingWarned) {
 			// if we're getting close to the time limit, let the players know
-			if (state.time >= (timeLimit - endWarningTime + 1)) { // we have to wait a second so the last event before this will actually trigger
+			if (state.time >= (timeLimit - endWarningTime)) {
 				state.events.setEvent(Event.GameEnd, endWarningTime / 60);
 				endingWarned = true;
 			}
@@ -194,6 +194,9 @@ function regularUpdate (dt : Float) {
 
 function defeatCutscene () {
 	cutsceneStarted = true;
+	for (objective in ["inhospitablelands", "recklessscouts", "lazyvillagers", "colonizetree", "bonusmissions", "returntomain", "scoutbonus", "skrymirbonus", "fjolsvinbonus", "koboldsbonus", "myrkalfarbonus"]) {
+		me().objectives.setVisible(objective, false);
+	}
 	setPause(true);
 	moveCamera({x: yggdrasil.x, y: yggdrasil.y});
 	wait(1);
