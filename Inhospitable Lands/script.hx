@@ -202,9 +202,17 @@ function defeatCutscene () {
 	wait(1);
 	shakeCamera();
 	if (isHost()) {
-		for (zone in centerZone.next) {
+		@async for (zone in centerZone.next) {
+			var buildings = [];
 			for (building in zone.buildings) {
-				building.destroy();
+				if (building.kind != Building.Decal) {
+					buildings.push(building);
+				}
+			}
+			var index = buildings.length - 1;
+			while (index >= 0) {
+				buildings[index].destroy();
+				--index;
 			}
 			// TODO: when the API lets us add buildings and not just destroy them, turn everything into Naströnd/Landvidi
 		}
