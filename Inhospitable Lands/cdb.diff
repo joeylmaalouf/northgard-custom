@@ -5,5 +5,13 @@
 				"value": 1.5
 			}
 		}
+	},
+	"cst": {
+		"YggdrasilColonizeCost": {
+			"value": 2500
+		},
+		"YggdrasilColonizeDuration": {
+			"value": 1
+		}
 	}
 }

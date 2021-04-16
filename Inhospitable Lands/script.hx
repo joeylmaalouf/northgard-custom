@@ -66,16 +66,13 @@ function onFirstLaunch () {
 		centerZone.addUnit(Unit.IceGolem, humanPlayers.length * 2, null, false);
 
 		// we have a few rules to make the environmental difficulty even more intense
-		addRule(Rule.Biggdrasil);
 		addRule(Rule.LethalScouts);
 		addRule(Rule.LethalRuins);
 		// I'd like to use MoreReqHappyFoodConsumption, but it doesn't seem to do anything, so instead we'll have the villagers be lazy
 		addRule(Rule.VillagerStrike);
-		// though we'll compensate a little by giving the town hall a base food income
-		addRule(Rule.ExtraFoodProduce);
 		// but FoodStarterPack also doesn't seem to work, so we'll add the resources ourselves
 		@sync for (currentPlayer in state.players) {
-			currentPlayer.addResource(Resource.Food, 200, false);
+			currentPlayer.addResource(Resource.Food, 300, false);
 		}
 	}
 
