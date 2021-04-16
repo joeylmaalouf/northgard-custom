@@ -90,8 +90,8 @@ function onFirstLaunch () {
 				goalVal: maxWaves,
 				autoCheck: true
 			});
-			// I'd like to say "[Maiden]" instead of "warchief", but for some reason it shifts the objective window over a lot
-			currentPlayer.objectives.add("closegate", "Now's your chance to close the gates once and for all! Every (non-AI) warchief should head there at once and clear the zone of foes!", {
+			// I'd like to say "[Maiden]" instead of "warchief", but for some reason having an initially-hidden objective with special [id] text shifts the objective window over a lot
+			currentPlayer.objectives.add("closegate", "Now's your chance to close the gates once and for all! Every (non-AI) warchief should head there at once!", {
 				visible: false
 			});
 
@@ -251,18 +251,11 @@ function regularUpdate (dt : Float) {
 					currentPlayer.objectives.setVisible("closegate", true);
 				}
 				state.events.setEvent(Event.FeastEnd, 0); // dummy event to clear the leftover invasion event from the timeline
-				// the reinforcements events might have made map center too challenging, so let's make it reasonable
-				killFoes([
-					{z: centerZone.id, u: Unit.Death, nb: 50},
-					{z: centerZone.id, u: Unit.Valkyrie, nb: 50},
-					{z: centerZone.id, u: Unit.UndeadGiant, nb: 50}
-				]);
-				centerZone.addUnit(Unit.Valkyrie, humanPlayers.length * 3, null, false);
 			}
 		}
 		else {
-			// if we have no foes (Kaija counts, so we have to check ownership too) and all of the non-AI warchiefs here,
-			// we can get all of the warchiefs into position and trigger the victory scene!
+			// if we have no leftover foes hanging around the gate (Kaija counts, so we have to check ownership too),
+			// and all of the non-AI warchiefs are here, we can get all of the warchiefs into position and trigger the victory scene!
 			var foes = [for (unit in centerZone.units) if (unit.isFoe && unit.owner == null) unit];
 			var playerWarchiefs = [for (unit in centerZone.units) if ((unit.kind == Unit.Maiden || unit.kind == Unit.Maiden02) && !unit.owner.isAI) unit];
 			if (foes.length == 0 && playerWarchiefs.length >= humanPlayers.length) {
