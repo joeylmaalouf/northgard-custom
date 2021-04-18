@@ -1,5 +1,5 @@
 var relationMultiplier = 10;
-var relationToHire = 8.0;
+var relationToHire = 6.0;
 var relationPerIncrease = 2.0;
 var hireCooldown = 120;
 
@@ -92,7 +92,7 @@ function onFirstLaunch () {
 			}
 
 			if (!currentPlayer.player.isAI) {
-				currentPlayer.player.objectives.add("victoryExplanation", "These lands are vast and mysterious, and the factions that live here are unlike any beings known to your clan! Maybe you can befriend them while you attempt to gain victory by researching the ancient lore found here?");
+				currentPlayer.player.objectives.add("victoryExplanation", "These lands are vast and mysterious, and the factions that live here are unlike any beings known to your clan! Perhaps they can help you be the first to learn the ancient lore found here?");
 				// we'll want to show each player their own relationship progress with the neutrals
 				for (neutralFaction in neutrals) {
 					currentPlayer.player.objectives.add("progress" + neutralFaction.name, "Your relationship with the [" + neutralFaction.formatName + "]s:", { visible: true, showProgressBar: true, goalVal: 100 });
@@ -101,7 +101,7 @@ function onFirstLaunch () {
 				// but we won't show them until the right conditions are met
 				currentPlayer.player.objectives.add(
 					"hireExplanation",
-					"For the right price, any neutral faction that considers you a good friend (" + relationToHire * relationMultiplier + "%) will attack your enemies! And they'll send even more units at " + ((relationToHire + relationPerIncrease) * relationMultiplier) + "%. They do, however, all share a cooldown.",
+					"For the right price, any neutral faction that considers you a good friend (" + relationToHire * relationMultiplier + "%) will attack your enemies! And they'll send more units for every " + (relationPerIncrease * relationMultiplier) + "% beyond that. They do, however, all share a cooldown.",
 					{ visible: false, showProgressBar: true, goalVal: hireCooldown },
 					{ name: "Hire a faction", action: "invokeHiring" }
 				);
