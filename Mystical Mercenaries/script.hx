@@ -2,6 +2,8 @@ var relationMultiplier = 10;
 var relationToHire = 6.0;
 var relationPerIncrease = 2.0;
 var hireCooldown = 120;
+var koboldsBefriended = false;
+var myrkalfarBefriended = false;
 
 var homeZones = [225, 101, 97, 215, 179, 147, 242, 124];
 var players : Array<{
@@ -92,7 +94,7 @@ function onFirstLaunch () {
 			}
 
 			if (!currentPlayer.player.isAI) {
-				currentPlayer.player.objectives.add("victoryExplanation", "These lands are vast and mysterious, and the factions that live here are unlike any beings known to your clan! Perhaps they can help you be the first to learn the ancient lore found here?");
+				currentPlayer.player.objectives.add("victoryExplanation", "The factions that inhabit these lands are unlike any beings known to your clan, but they each promise a reward to the first clan to fully befriend them! Perhaps they can help you in your race to learn the ancient lore found here?");
 				// we'll want to show each player their own relationship progress with the neutrals
 				for (neutralFaction in neutrals) {
 					currentPlayer.player.objectives.add("progress" + neutralFaction.name, "Your relationship with the [" + neutralFaction.formatName + "]s:", { visible: true, showProgressBar: true, goalVal: 100 });
@@ -101,7 +103,7 @@ function onFirstLaunch () {
 				// but we won't show them until the right conditions are met
 				currentPlayer.player.objectives.add(
 					"hireExplanation",
-					"For the right price, any neutral faction that considers you a good friend (" + relationToHire * relationMultiplier + "%) will attack your enemies! And they'll send more units for every " + (relationPerIncrease * relationMultiplier) + "% beyond that. They do, however, all share a cooldown.",
+					"Any neutral faction that considers you a good ally (" + relationToHire * relationMultiplier + "%) can be hired to attack your enemies! And they'll send more units for every " + (relationPerIncrease * relationMultiplier) + "% beyond that. They do, however, all share a cooldown.",
 					{ visible: false, showProgressBar: true, goalVal: hireCooldown },
 					{ name: "Hire a faction", action: "invokeHiring" }
 				);
@@ -170,56 +172,77 @@ function regularUpdate (dt : Float) {
 		// we'll limit our objective updates to every second instead of every 0.5 seconds to ease up on the computing
 		if (state.time % 1 < 0.1) {
 			@sync for (currentPlayer in players) {
-				if (!currentPlayer.player.isAI && !currentPlayer.isDead) {
-					// determine whether we should show this player the overview set of objectives
-					// and while we're here, update the relationship progress bars
-					var showOverview = !currentPlayer.isHiring && !currentPlayer.isTargeting;
-					currentPlayer.player.objectives.setVisible("victoryExplanation", showOverview);
-					for (neutralFaction in neutrals) {
-						if (!neutralFaction.isDead) {
-							currentPlayer.player.objectives.setCurrentVal("progress" + neutralFaction.name, currentPlayer.player.getAlignment(neutralFaction.faction, false) * relationMultiplier);
-						}
-						currentPlayer.player.objectives.setVisible("progress" + neutralFaction.name, showOverview && !neutralFaction.isDead);
-					}
-
-					// determine whether we should show this player the hiring set of objectives
-					// and while we're here, update the hire cooldown progress bar
-					var anyWilling = false;
-					for (neutralFaction in neutrals) {
-						var thisWilling = false;
-						if (!neutralFaction.isDead) {
-							var factionRelation = currentPlayer.player.getAlignment(neutralFaction.faction, false);
-							if (factionRelation >= relationToHire) {
-								thisWilling = true;
-								anyWilling = true;
+				if (!currentPlayer.isDead) {
+					if (!currentPlayer.player.isAI) {
+						// determine whether we should show this player the overview set of objectives
+						// and while we're here, update the relationship progress bars
+						var showOverview = !currentPlayer.isHiring && !currentPlayer.isTargeting;
+						currentPlayer.player.objectives.setVisible("victoryExplanation", showOverview);
+						for (neutralFaction in neutrals) {
+							if (!neutralFaction.isDead) {
+								currentPlayer.player.objectives.setCurrentVal("progress" + neutralFaction.name, currentPlayer.player.getAlignment(neutralFaction.faction, false) * relationMultiplier);
 							}
+							currentPlayer.player.objectives.setVisible("progress" + neutralFaction.name, showOverview && !neutralFaction.isDead);
 						}
-						currentPlayer.player.objectives.setVisible("hire" + neutralFaction.name, currentPlayer.isHiring && thisWilling);
-						// if the player can't afford to hire this faction, we'll still show the option but gray it out
-						var canAfford = currentPlayer.player.getResource(neutralFaction.resource) >= neutralFaction.price;
-						currentPlayer.player.objectives.setStatus("hire" + neutralFaction.name, canAfford ? OStatus.Empty : OStatus.Missed);
-					}
-					currentPlayer.player.objectives.setVisible("cancelHire", currentPlayer.isHiring && anyWilling);
 
-					// we want to show the player their hiring cooldown
-					var timeSinceHire = toInt(state.time - currentPlayer.lastHireTime);
-					if (timeSinceHire <= hireCooldown) {
-						currentPlayer.player.objectives.setCurrentVal("hireExplanation", timeSinceHire);
-					}
-					// we only want to show the explanation and let them get further into hiring
-					// if we're on the main menu and any of the factions are willing to be hired
-					currentPlayer.player.objectives.setVisible("hireExplanation", showOverview && anyWilling);
-					// if the player's hiring cooldown has not yet completed, we'll still show the explanation but gray it out
-					var offCooldown = timeSinceHire >= hireCooldown;
-					currentPlayer.player.objectives.setStatus("hireExplanation", offCooldown ? OStatus.Empty : OStatus.Missed);
-
-					// determine whether we should show this player the targeting set of objectives
-					for (otherPlayer in players) {
-						currentPlayer.player.objectives.setVisible("selectTarget", currentPlayer.isTargeting);
-						if (otherPlayer.uid != currentPlayer.uid) {
-							currentPlayer.player.objectives.setVisible("target" + otherPlayer.uid, currentPlayer.isTargeting && !otherPlayer.isDead);
+						// determine whether we should show this player the hiring set of objectives
+						// and while we're here, update the hire cooldown progress bar
+						var anyWilling = false;
+						for (neutralFaction in neutrals) {
+							var thisWilling = false;
+							if (!neutralFaction.isDead) {
+								var factionRelation = currentPlayer.player.getAlignment(neutralFaction.faction, false);
+								if (factionRelation >= relationToHire) {
+									thisWilling = true;
+									anyWilling = true;
+								}
+							}
+							currentPlayer.player.objectives.setVisible("hire" + neutralFaction.name, currentPlayer.isHiring && thisWilling);
+							// if the player can't afford to hire this faction, we'll still show the option but gray it out
+							var canAfford = currentPlayer.player.getResource(neutralFaction.resource) >= neutralFaction.price;
+							currentPlayer.player.objectives.setStatus("hire" + neutralFaction.name, canAfford ? OStatus.Empty : OStatus.Missed);
 						}
-						currentPlayer.player.objectives.setVisible("cancelTarget", currentPlayer.isTargeting);
+						currentPlayer.player.objectives.setVisible("cancelHire", currentPlayer.isHiring && anyWilling);
+
+						// we want to show the player their hiring cooldown
+						var timeSinceHire = toInt(state.time - currentPlayer.lastHireTime);
+						if (timeSinceHire <= hireCooldown) {
+							currentPlayer.player.objectives.setCurrentVal("hireExplanation", timeSinceHire);
+						}
+						// we only want to show the explanation and let them get further into hiring
+						// if we're on the main menu and any of the factions are willing to be hired
+						currentPlayer.player.objectives.setVisible("hireExplanation", showOverview && anyWilling);
+						// if the player's hiring cooldown has not yet completed, we'll still show the explanation but gray it out
+						var offCooldown = timeSinceHire >= hireCooldown;
+						currentPlayer.player.objectives.setStatus("hireExplanation", offCooldown ? OStatus.Empty : OStatus.Missed);
+
+						// determine whether we should show this player the targeting set of objectives
+						for (otherPlayer in players) {
+							currentPlayer.player.objectives.setVisible("selectTarget", currentPlayer.isTargeting);
+							if (otherPlayer.uid != currentPlayer.uid) {
+								currentPlayer.player.objectives.setVisible("target" + otherPlayer.uid, currentPlayer.isTargeting && !otherPlayer.isDead);
+							}
+							currentPlayer.player.objectives.setVisible("cancelTarget", currentPlayer.isTargeting);
+						}
+					}
+
+					// we'll keep checking for the first player(s) to fully befriend the non-jotnar factions
+					// so we can give them each a lore reward to match the military reward of the giant heroes
+					if (!koboldsBefriended && (currentPlayer.player.getAlignment(getFaction("Kobold"), false) * relationMultiplier >= 100)) {
+						koboldsBefriended = true;
+						currentPlayer.player.addBonus({ id: Bonus.BJobProd, isAdvanced: true, unitId: Unit.Mender });
+						var args : Array<Dynamic> = [];
+						args.push("You've gained a 10% bonus to [Mender] production for befriending the [Kobold]s!");
+						args.push(null);
+						invoke(currentPlayer.player, "displayNotification", args);
+					}
+					if (!myrkalfarBefriended && (currentPlayer.player.getAlignment(getFaction("Myrkalfar"), false) * relationMultiplier >= 100)) {
+						myrkalfarBefriended = true;
+						currentPlayer.player.addBonus({ id: Bonus.BJobProd, isAdvanced: true, unitId: Unit.RuneMaster });
+						var args : Array<Dynamic> = [];
+						args.push("You've gained a 10% bonus to [RuneMaster] production for befriending the [Myrkalfar]s!");
+						args.push(null);
+						invoke(currentPlayer.player, "displayNotification", args);
 					}
 				}
 			}
